@@ -604,15 +604,6 @@ function Dashboard({ theme, navigate, user, holdings, loading, onRefresh, lastRe
         </div>
       )}
 
-      {chartData.length > 0 && (
-        <div style={{ padding: '0 16px' }}>
-          <Card theme={theme}>
-            <SectionHead theme={theme} title="RSI" sub="14-day · oversold ≤ 30 · overbought ≥ 70"/>
-            <RSIChart data={chartData} theme={theme}/>
-          </Card>
-        </div>
-      )}
-
       <HoldingsTable theme={theme} holdings={holdings} loading={loading} onPick={sym => navigate('detail', sym)} onRefresh={onRefresh} lastRefreshed={lastRefreshed}/>
 
       {holdings.length === 0 && !loading && (
@@ -694,8 +685,8 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
             </button>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 62px 44px 30px 30px 1fr', gap: 6, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
-          {['ASSET', 'BUY RATING', 'SCORE', '72MA', '200MA', 'PRICE / DATA'].map((h, i) => (
+        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 58px 38px 30px 26px 26px 1fr', gap: 4, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
+          {['ASSET', 'BUY RATING', 'SCORE', 'RSI', '72MA', '200MA', 'PRICE / DATA'].map((h, i) => (
             <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
           ))}
         </div>
@@ -720,7 +711,7 @@ function HoldingRow({ h, theme, last, onClick }) {
   const c = getColor(h.sym);
   return (
     <div onClick={onClick} style={{
-      display: 'grid', gridTemplateColumns: '1.6fr 62px 44px 30px 30px 1fr', gap: 6, alignItems: 'center',
+      display: 'grid', gridTemplateColumns: '1.6fr 58px 38px 30px 26px 26px 1fr', gap: 4, alignItems: 'center',
       padding: '11px 14px', borderBottom: last ? 'none' : `1px solid ${theme.line}`,
       cursor: 'pointer',
     }}>
@@ -736,6 +727,7 @@ function HoldingRow({ h, theme, last, onClick }) {
       </div>
       <div><RatingPill rating={h.displayRating || 'HOLD'}/></div>
       <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: c }}>{h.score}</div>
+      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: h.rsi == null ? theme.text3 : h.rsi < 30 ? '#10B981' : h.rsi > 70 ? '#EF4444' : theme.text }}>{h.rsi ?? '—'}</div>
       <div style={{ textAlign: 'right' }}><MAPill above={h.aboveMa72}/></div>
       <div style={{ textAlign: 'right' }}><MAPill above={h.aboveMa200}/></div>
       <div style={{ textAlign: 'right' }}>
@@ -1683,12 +1675,6 @@ function DesktopDashboardRight({ theme, holdings, loading, navigate, fgIndex }) 
           <ScoresChart data={chartData} theme={theme} focused={focused} onPick={s => setFocused(focused === s ? null : s)}/>
         </Card>
       )}
-      {chartData.length > 0 && (
-        <Card theme={theme}>
-          <SectionHead theme={theme} title="RSI" sub="14-day · ≤30 oversold · ≥70 overbought"/>
-          <RSIChart data={chartData} theme={theme}/>
-        </Card>
-      )}
       {chartData.length === 0 && !loading && (
         <div style={{ textAlign: 'center', padding: '60px 20px', color: theme.text3 }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>📈</div>
@@ -1710,8 +1696,8 @@ function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgInd
       <div style={{ flex: '0 0 60%', overflowY: 'auto', borderRight: `1px solid rgba(255,255,255,.06)`, padding: '24px 20px 24px 28px' }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: theme.text3, letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 14 }}>Holdings</div>
         <Card theme={theme} style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 62px 44px 30px 30px 1fr', gap: 6, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}` }}>
-            {['ASSET', 'BUY RATING', 'SCORE', '72MA', '200MA', 'PRICE / DATA'].map((h, i) => (
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 58px 38px 30px 26px 26px 1fr', gap: 4, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}` }}>
+            {['ASSET', 'BUY RATING', 'SCORE', 'RSI', '72MA', '200MA', 'PRICE / DATA'].map((h, i) => (
               <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
             ))}
           </div>
@@ -1748,12 +1734,6 @@ function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgInd
           <Card theme={theme}>
             <SectionHead theme={theme} title="Scores" sub="0–10 composite signal"/>
             <ScoresChart data={chartData} theme={theme} focused={focused} onPick={s => setFocused(focused === s ? null : s)}/>
-          </Card>
-        )}
-        {chartData.length > 0 && (
-          <Card theme={theme}>
-            <SectionHead theme={theme} title="RSI" sub="14-day · oversold ≤ 30 · overbought ≥ 70"/>
-            <RSIChart data={chartData} theme={theme}/>
           </Card>
         )}
         {chartData.length === 0 && !loading && (
