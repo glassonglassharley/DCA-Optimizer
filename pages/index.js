@@ -690,8 +690,8 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
             </button>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 68px 34px 42px 1fr', gap: 6, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
-          {['ASSET', 'BUY RATING', 'RSI', 'PE', 'PRICE'].map((h, i) => (
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 58px 28px 32px 42px 48px 1fr', gap: 4, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
+          {['ASSET', 'BUY RATING', 'RSI', 'PE', '52L', '52H', 'PRICE'].map((h, i) => (
             <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
           ))}
         </div>
@@ -704,17 +704,27 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
         <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.6, paddingTop: 12, borderTop: '1px solid #1e2433', margin: '0 16px 16px' }}>
           <div>* RSI — Relative Strength Index (14-day). ≤30 oversold · ≥70 overbought</div>
           <div>* PE — Forward Price-to-Earnings ratio. &lt;15 undervalued · &gt;35 premium. Stocks only.</div>
+          <div>* 52L / 52H — 52-week Low / High. <span style={{ color: '#10B981' }}>Green</span> = within 15% of low · <span style={{ color: '#EF4444' }}>Red</span> = within 15% of high</div>
         </div>
       </Card>
     </div>
   );
 }
 
+function fmt52wk(p) {
+  if (p == null) return '—';
+  if (p >= 1000) return '$' + Math.round(p).toLocaleString('en-US');
+  if (p >= 100)  return '$' + Math.round(p);
+  return '$' + parseFloat(p).toFixed(2);
+}
+
 function HoldingRow({ h, theme, last, onClick }) {
   const c = getColor(h.sym);
+  const near52Low  = h.wkLow  != null && h.price != null && h.price <= h.wkLow  * 1.15;
+  const near52High = h.wkHigh != null && h.price != null && h.price >= h.wkHigh * 0.85;
   return (
     <div onClick={onClick} style={{
-      display: 'grid', gridTemplateColumns: '1.6fr 68px 34px 42px 1fr', gap: 6, alignItems: 'center',
+      display: 'grid', gridTemplateColumns: '1.2fr 58px 28px 32px 42px 48px 1fr', gap: 4, alignItems: 'center',
       padding: '11px 14px', borderBottom: last ? 'none' : `1px solid ${theme.line}`,
       cursor: 'pointer',
     }}>
@@ -729,12 +739,18 @@ function HoldingRow({ h, theme, last, onClick }) {
         </div>
       </div>
       <div><RatingPill rating={h.displayRating || 'HOLD'}/></div>
-      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: h.rsi == null ? theme.text3 : h.rsi < 30 ? '#10B981' : h.rsi > 70 ? '#EF4444' : theme.text }}>{h.rsi ?? '—'}</div>
-      <div title={h.sym === 'MSTR' ? 'PE excluded — Bitcoin treasury company' : undefined} style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: (h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.sym === 'MSTR' || h.fpe == null) ? theme.text3 : h.fpe < 15 ? '#10B981' : h.fpe <= 35 ? '#F59E0B' : '#EF4444' }}>
+      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: h.rsi == null ? theme.text3 : h.rsi < 30 ? '#10B981' : h.rsi > 70 ? '#EF4444' : theme.text }}>{h.rsi ?? '—'}</div>
+      <div title={h.sym === 'MSTR' ? 'PE excluded — Bitcoin treasury company' : undefined} style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: (h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.sym === 'MSTR' || h.fpe == null) ? theme.text3 : h.fpe < 15 ? '#10B981' : h.fpe <= 35 ? '#F59E0B' : '#EF4444' }}>
         {(h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.sym === 'MSTR' || h.fpe == null) ? (h.sym === 'MSTR' ? '—*' : '—') : parseFloat(h.fpe).toFixed(1)}
       </div>
-      <div style={{ textAlign: 'right' }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: theme.text }}>
+      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: near52Low ? '#10B981' : theme.text3, overflow: 'hidden' }}>
+        {fmt52wk(h.wkLow)}
+      </div>
+      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: near52High ? '#EF4444' : theme.text3, overflow: 'hidden' }}>
+        {fmt52wk(h.wkHigh)}
+      </div>
+      <div style={{ textAlign: 'right', overflow: 'hidden' }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: theme.text }}>
           {h.price != null && h.price > 0 ? `$${fmtPrice(h.price)}` : '—'}
         </div>
         {h.chg != null && (
@@ -761,7 +777,7 @@ function timeAgo(dateStr) {
 function RecentNews({ sym, theme }) {
   const [articles, setArticles] = useState(null);
   useEffect(() => {
-    fetch(`/api/tickernews?symbol=${sym}`)
+    fetch(`/api/gnews?symbol=${sym}`)
       .then(r => r.json())
       .then(d => setArticles(d.articles || []))
       .catch(() => setArticles([]));
@@ -1711,8 +1727,8 @@ function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgInd
       <div style={{ flex: '0 0 60%', overflowY: 'auto', borderRight: `1px solid rgba(255,255,255,.06)`, padding: '24px 20px 24px 28px' }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: theme.text3, letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 14 }}>Holdings</div>
         <Card theme={theme} style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 68px 34px 42px 1fr', gap: 6, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}` }}>
-            {['ASSET', 'BUY RATING', 'RSI', 'PE', 'PRICE'].map((h, i) => (
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 58px 28px 32px 42px 48px 1fr', gap: 4, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}` }}>
+            {['ASSET', 'BUY RATING', 'RSI', 'PE', '52L', '52H', 'PRICE'].map((h, i) => (
               <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
             ))}
           </div>
@@ -1923,6 +1939,8 @@ export default function Home() {
         ma200: m.ma200 || null,
         aboveMa72,
         aboveMa200,
+        wkLow:  m.fiftyTwoWeekLow  ?? null,
+        wkHigh: m.fiftyTwoWeekHigh ?? null,
         why: null,
       };
     }).sort((a, b) => b.score - a.score);
