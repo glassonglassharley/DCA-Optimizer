@@ -28,34 +28,50 @@ function calcRSIForEach(closes, period = 14) {
   return rsis;
 }
 
-function simulateDCA(dates, closes, rsis, amount, frequency, rsiThreshold, smart) {
-  const intervalDays = frequency === 'weekly' ? 7 : 30;
+function isBuyDay(dateStr, frequency, buyDay) {
+  const d = new Date(dateStr);
+  if (frequency === 'weekly') {
+    return d.getDay() === parseInt(buyDay); // buyDay: 1=Mon, 2=Tue, ..., 5=Fri
+  } else {
+    // Monthly: buy on the first trading day at or after the target day-of-month
+    return d.getDate() === parseInt(buyDay);
+  }
+}
 
+function simulateDCA(dates, closes, rsis, amount, frequency, rsiThreshold, buyDay, smart) {
   if (!dates.length) return null;
 
-  let nextBuyTs = new Date(dates[0]).getTime();
   let totalInvested = 0;
   let totalUnits = 0;
   let buyCount = 0;
   const timeline = [];
 
+  // For monthly: track which months we've already bought in
+  const boughtMonths = new Set();
+
   for (let i = 0; i < dates.length; i++) {
-    const dayTs = new Date(dates[i]).getTime();
+    const price = closes[i];
+    const rsi = rsis[i];
+    const d = new Date(dates[i]);
 
-    if (dayTs >= nextBuyTs) {
-      const price = closes[i];
-      const rsi = rsis[i];
+    let shouldBuy = false;
+    if (frequency === 'weekly') {
+      shouldBuy = isBuyDay(dates[i], 'weekly', buyDay);
+    } else {
+      // Monthly: buy on or after buyDay in each calendar month
+      const monthKey = `${d.getFullYear()}-${d.getMonth()}`;
+      if (!boughtMonths.has(monthKey) && d.getDate() >= parseInt(buyDay)) {
+        shouldBuy = true;
+        boughtMonths.add(monthKey);
+      }
+    }
+
+    if (shouldBuy) {
       const qualifies = !smart || (rsi != null && rsi < rsiThreshold);
-
       if (qualifies && price) {
         totalInvested += amount;
         totalUnits += amount / price;
         buyCount++;
-      }
-
-      // Advance next buy date past this day
-      while (nextBuyTs <= dayTs) {
-        nextBuyTs += intervalDays * 24 * 60 * 60 * 1000;
       }
     }
 
@@ -76,7 +92,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { symbol, period = '6m', rsiThreshold = '35', amount = '100', frequency = 'weekly' } = req.query;
+  const { symbol, period = '6m', rsiThreshold = '35', amount = '100', frequency = 'weekly', buyDay = '1' } = req.query;
   if (!symbol) return res.status(400).json({ error: 'Symbol required' });
 
   const yahooSymbol = CRYPTO_SYMBOL_MAP[symbol.toUpperCase()] || symbol.toUpperCase();
@@ -122,8 +138,8 @@ export default async function handler(req, res) {
 
     const currentPrice = closes[closes.length - 1];
 
-    const blind = simulateDCA(dates, closes, rsis, buyAmount, frequency, threshold, false);
-    const smart = simulateDCA(dates, closes, rsis, buyAmount, frequency, threshold, true);
+    const blind = simulateDCA(dates, closes, rsis, buyAmount, frequency, threshold, buyDay, false);
+    const smart = simulateDCA(dates, closes, rsis, buyAmount, frequency, threshold, buyDay, true);
 
     // Sparse timeline for chart (every 5 points)
     const sparseTimeline = (tl) => tl.filter((_, i) => i % 5 === 0 || i === tl.length - 1);

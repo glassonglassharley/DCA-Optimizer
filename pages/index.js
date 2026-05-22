@@ -312,10 +312,9 @@ function IconBtn({ theme, children, onClick, badge }) {
 
 function BottomNav({ theme, tab, setTab, onAdd }) {
   const tabs = [
-    { id: 'home',  label: 'Home',     icon: Ic.home },
-    { id: 'list',  label: 'Watch',    icon: Ic.list },
-    { id: 'calc',  label: 'Calc',     icon: Ic.calc },
-    { id: 'gear',  label: 'Settings', icon: Ic.gear },
+    { id: 'home',     label: 'Home',     icon: Ic.home },
+    { id: 'calc',     label: 'Calc',     icon: Ic.calc },
+    { id: 'glossary', label: 'Glossary', icon: Ic.book },
   ];
   return (
     <div style={{
@@ -1109,11 +1108,52 @@ function CalculatorScreen({ theme, holdings }) {
   const [ticker, setTicker] = useState(tickers[0] || '');
   const [amount, setAmount] = useState('100');
   const [frequency, setFrequency] = useState('weekly');
+  const [buyDay, setBuyDay] = useState('1'); // weekly: 0=Mon…4=Fri; monthly: 1,8,15,22
   const [rsiThreshold, setRsiThreshold] = useState('35');
   const [period, setPeriod] = useState('6m');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+
+  const weeklyDays = [
+    { value: '1', label: 'Monday' },
+    { value: '2', label: 'Tuesday' },
+    { value: '3', label: 'Wednesday' },
+    { value: '4', label: 'Thursday' },
+    { value: '5', label: 'Friday' },
+  ];
+  const monthlyDays = [
+    { value: '1',  label: '1st' },
+    { value: '8',  label: '8th' },
+    { value: '15', label: '15th' },
+    { value: '22', label: '22nd' },
+  ];
+
+  // Compute next scheduled buy date
+  const nextBuyDate = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (frequency === 'weekly') {
+      const target = parseInt(buyDay); // JS getDay(): 0=Sun,1=Mon,...
+      let d = new Date(today);
+      for (let i = 1; i <= 7; i++) {
+        d = new Date(today.getTime() + i * 86400000);
+        if (d.getDay() === target) break;
+      }
+      return d;
+    } else {
+      const dom = parseInt(buyDay);
+      let d = new Date(today.getFullYear(), today.getMonth(), dom);
+      if (d <= today) d = new Date(today.getFullYear(), today.getMonth() + 1, dom);
+      return d;
+    }
+  }, [frequency, buyDay]);
+
+  const fmtNextBuy = (d) => {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${days[d.getDay()]} ${months[d.getMonth()]} ${d.getDate()}`;
+  };
 
   const handleRun = async () => {
     if (!ticker || loading) return;
@@ -1122,7 +1162,7 @@ function CalculatorScreen({ theme, holdings }) {
     setResult(null);
     try {
       const r = await fetch(
-        `/api/calculator?symbol=${encodeURIComponent(ticker)}&period=${period}&rsiThreshold=${rsiThreshold}&amount=${amount}&frequency=${frequency}`
+        `/api/calculator?symbol=${encodeURIComponent(ticker)}&period=${period}&rsiThreshold=${rsiThreshold}&amount=${amount}&frequency=${frequency}&buyDay=${buyDay}`
       );
       const d = await r.json();
       if (d.error) throw new Error(d.error);
@@ -1149,24 +1189,6 @@ function CalculatorScreen({ theme, holdings }) {
     fontSize: 9.5, fontWeight: 700, letterSpacing: '.09em',
     color: theme.text3, marginBottom: 5, display: 'block',
   };
-
-  function Toggle({ options, value, onChange }) {
-    return (
-      <div style={{ display: 'flex', gap: 4, background: theme.bg2, borderRadius: 10, padding: 3, border: `1px solid ${theme.line}` }}>
-        {options.map(o => (
-          <button key={o.value} onClick={() => onChange(o.value)} style={{
-            flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
-            background: value === o.value ? theme.brand + '22' : 'transparent',
-            color: value === o.value ? theme.brand : theme.text3,
-            fontWeight: value === o.value ? 700 : 500, fontSize: 12,
-            borderWidth: value === o.value ? 1 : 0, borderStyle: 'solid',
-            borderColor: value === o.value ? theme.brand + '55' : 'transparent',
-            transition: 'all .15s',
-          }}>{o.label}</button>
-        ))}
-      </div>
-    );
-  }
 
   const s = result?.smart;
   const b = result?.blind;
@@ -1209,48 +1231,66 @@ function CalculatorScreen({ theme, holdings }) {
             <span style={labelStyle}>INVEST PER PERIOD</span>
             <div style={{ ...fieldWrap, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ color: theme.text3, fontSize: 14, fontFamily: 'var(--font-mono)', fontWeight: 700 }}>$</span>
-              <input
-                type="number"
-                min="1"
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                style={{ ...inputStyle, width: '100%' }}
-              />
+              <input type="number" min="1" value={amount} onChange={e => setAmount(e.target.value)} style={{ ...inputStyle, width: '100%' }}/>
             </div>
           </div>
           <div>
             <span style={labelStyle}>FREQUENCY</span>
-            <Toggle
-              options={[{ value: 'weekly', label: 'Weekly' }, { value: 'monthly', label: 'Monthly' }]}
-              value={frequency}
-              onChange={setFrequency}
-            />
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[{ v: 'weekly', l: 'Weekly' }, { v: 'monthly', l: 'Monthly' }].map(o => (
+                <button key={o.v} onClick={() => { setFrequency(o.v); setBuyDay(o.v === 'weekly' ? '1' : '1'); }} style={{
+                  flex: 1, padding: '11px 0', borderRadius: 12, border: `1px solid ${frequency === o.v ? theme.brand + '55' : theme.line2}`,
+                  background: frequency === o.v ? theme.brand + '18' : theme.card,
+                  color: frequency === o.v ? theme.brand : theme.text3,
+                  fontWeight: frequency === o.v ? 700 : 500, fontSize: 13, cursor: 'pointer', transition: 'all .15s',
+                }}>{o.l}</button>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* RSI Threshold + Period */}
+        {/* Buy Day + RSI Threshold */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div>
+            <span style={labelStyle}>BUY DAY</span>
+            <div style={{ ...fieldWrap, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <select value={buyDay} onChange={e => setBuyDay(e.target.value)} style={{ ...inputStyle, cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none', fontSize: 13 }}>
+                {(frequency === 'weekly' ? weeklyDays : monthlyDays).map(d => (
+                  <option key={d.value} value={d.value}>{d.label}</option>
+                ))}
+              </select>
+              {Ic.chevR(14, theme.text3)}
+            </div>
+          </div>
           <div>
             <span style={labelStyle}>RSI THRESHOLD</span>
             <div style={{ ...fieldWrap, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 12, color: theme.text3, fontWeight: 600, whiteSpace: 'nowrap' }}>RSI &lt;</span>
-              <input
-                type="number"
-                min="1"
-                max="99"
-                value={rsiThreshold}
-                onChange={e => setRsiThreshold(e.target.value)}
-                style={{ ...inputStyle, width: '100%' }}
-              />
+              <input type="number" min="1" max="99" value={rsiThreshold} onChange={e => setRsiThreshold(e.target.value)} style={{ ...inputStyle, width: '100%' }}/>
             </div>
           </div>
-          <div>
-            <span style={labelStyle}>TIME PERIOD</span>
-            <Toggle
-              options={[{ value: '6m', label: '6 months' }, { value: '12m', label: '12 months' }]}
-              value={period}
-              onChange={setPeriod}
-            />
+        </div>
+
+        {/* Next buy callout */}
+        <div style={{ padding: '9px 14px', borderRadius: 10, background: theme.bg2, border: `1px solid ${theme.line}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 7, height: 7, borderRadius: 99, background: theme.brand, boxShadow: `0 0 8px ${theme.brand}` }}/>
+          <span style={{ fontSize: 11.5, color: theme.text2 }}>
+            Next scheduled buy: <b style={{ color: theme.text, fontFamily: 'var(--font-mono)' }}>{fmtNextBuy(nextBuyDate)}</b>
+          </span>
+        </div>
+
+        {/* Period row */}
+        <div>
+          <span style={labelStyle}>BACKTEST PERIOD</span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {[{ v: '6m', l: '6 months' }, { v: '12m', l: '12 months' }].map(o => (
+              <button key={o.v} onClick={() => setPeriod(o.v)} style={{
+                flex: 1, padding: '11px 0', borderRadius: 12, border: `1px solid ${period === o.v ? theme.brand + '55' : theme.line2}`,
+                background: period === o.v ? theme.brand + '18' : theme.card,
+                color: period === o.v ? theme.brand : theme.text3,
+                fontWeight: period === o.v ? 700 : 500, fontSize: 13, cursor: 'pointer', transition: 'all .15s',
+              }}>{o.l}</button>
+            ))}
           </div>
         </div>
 
@@ -1399,10 +1439,9 @@ function CalculatorScreen({ theme, holdings }) {
 
 function DesktopSidebar({ theme, activeScreen, onNav, user }) {
   const items = [
-    { id: 'home',       label: 'Home',       icon: Ic.home,  screen: 'dashboard' },
-    { id: 'calc',       label: 'Calculator', icon: Ic.calc,  screen: 'calculator' },
-    { id: 'glossary',   label: 'Glossary',   icon: Ic.book,  screen: 'glossary' },
-    { id: 'gear',       label: 'Settings',   icon: Ic.gear,  screen: 'settings' },
+    { id: 'home',     label: 'Home',       icon: Ic.home, screen: 'dashboard' },
+    { id: 'calc',     label: 'Calculator', icon: Ic.calc, screen: 'calculator' },
+    { id: 'glossary', label: 'Glossary',   icon: Ic.book, screen: 'glossary' },
   ];
   return (
     <div style={{
@@ -1662,10 +1701,9 @@ export default function Home() {
   useEffect(() => {
     if (!didMount.current) { didMount.current = true; return; }
     if (cur.screen === 'signin') return;
-    if (tab === 'home') replace('dashboard');
-    if (tab === 'gear') replace('settings');
-    if (tab === 'list') replace('dashboard');
-    if (tab === 'calc') replace('calculator');
+    if (tab === 'home')     replace('dashboard');
+    if (tab === 'calc')     replace('calculator');
+    if (tab === 'glossary') replace('glossary');
   }, [tab]);
 
   // Fetch Fear & Greed index once
@@ -1735,9 +1773,9 @@ export default function Home() {
 
   const desktopNav = (screen) => {
     replace(screen);
-    if (screen === 'dashboard') setTab('home');
-    else if (screen === 'calculator') setTab('calc');
-    else if (screen === 'settings') setTab('gear');
+    if (screen === 'dashboard')  setTab('home');
+    if (screen === 'calculator') setTab('calc');
+    if (screen === 'glossary')   setTab('glossary');
   };
 
   let body;
