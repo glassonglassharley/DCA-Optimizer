@@ -569,7 +569,7 @@ function SignIn({ theme, onEnter }) {
 function Dashboard({ theme, navigate, user, holdings, loading, onRefresh, lastRefreshed, fgIndex }) {
   const [focused, setFocused] = useState(null);
   const top = holdings[0];
-  const chartData = holdings.slice(0, 10);
+  const chartData = holdings;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -589,7 +589,7 @@ function Dashboard({ theme, navigate, user, holdings, loading, onRefresh, lastRe
             <SectionHead theme={theme} title="Scores" sub="0–10 composite signal"/>
             <ScoresChart data={chartData} theme={theme} focused={focused} onPick={s => setFocused(focused === s ? null : s)}/>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14, paddingTop: 10, borderTop: `1px solid ${theme.line}` }}>
-              {chartData.slice(0, 6).map(d => {
+              {chartData.map(d => {
                 const c = getColor(d.sym);
                 const on = !focused || focused === d.sym;
                 return (
@@ -650,7 +650,7 @@ function TopPickCard({ theme, holding: h, onOpen }) {
             <div style={{ display: 'flex', gap: 14, marginTop: 4, fontFamily: 'var(--font-mono)', fontSize: 11, color: theme.text2 }}>
               <span><span style={{ color: theme.text3 }}>SCORE </span><b style={{ color: c }}>{h.score}</b></span>
               {h.rsi != null && <span><span style={{ color: theme.text3 }}>RSI </span><b style={{ color: theme.text }}>{h.rsi}</b></span>}
-              <span><span style={{ color: theme.text3 }}>$ </span><b style={{ color: theme.text }}>{fmtPrice(h.price)}</b></span>
+              <span><span style={{ color: theme.text3 }}>$ </span><b style={{ color: theme.text }}>{h.price ? fmtPrice(h.price) : '—'}</b></span>
             </div>
           </div>
           <RatingPill rating={h.displayRating || h.rating} large/>
@@ -726,12 +726,12 @@ function HoldingRow({ h, theme, last, onClick }) {
       <div><RatingPill rating={h.displayRating || 'HOLD'}/></div>
       <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: c }}>{h.score}</div>
       <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: h.rsi == null ? theme.text3 : h.rsi < 30 ? '#10B981' : h.rsi > 70 ? '#EF4444' : theme.text }}>{h.rsi ?? '—'}</div>
-      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: (h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.fpe == null) ? theme.text3 : h.fpe < 15 ? '#10B981' : h.fpe <= 35 ? '#F59E0B' : '#EF4444' }}>
-        {(h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.fpe == null) ? '—' : parseFloat(h.fpe).toFixed(1)}
+      <div title={h.sym === 'MSTR' ? 'PE excluded — Bitcoin treasury company' : undefined} style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: (h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.fpe == null) ? theme.text3 : h.fpe < 15 ? '#10B981' : h.fpe <= 35 ? '#F59E0B' : '#EF4444' }}>
+        {(h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.fpe == null) ? (h.sym === 'MSTR' ? '—*' : '—') : parseFloat(h.fpe).toFixed(1)}
       </div>
       <div style={{ textAlign: 'right' }}>
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: theme.text }}>
-          {h.price ? `$${fmtPrice(h.price)}` : 'N/A'}
+          {h.price ? `$${fmtPrice(h.price)}` : '—'}
         </div>
         {h.chg != null && (
           <div style={{ fontSize: 10, color: h.chg >= 0 ? '#10B981' : '#EF4444', fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2 }}>
@@ -1662,7 +1662,7 @@ function DesktopHeader({ theme, user, onAdd }) {
 function DesktopDashboardRight({ theme, holdings, loading, navigate, fgIndex }) {
   const [focused, setFocused] = useState(null);
   const top = holdings[0];
-  const chartData = holdings.slice(0, 10);
+  const chartData = holdings;
   return (
     <>
       {top && (
@@ -1690,7 +1690,7 @@ function DesktopDashboardRight({ theme, holdings, loading, navigate, fgIndex }) 
 function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgIndex }) {
   const [focused, setFocused] = useState(null);
   const top = holdings[0];
-  const chartData = holdings.slice(0, 10);
+  const chartData = holdings;
 
   return (
     <div style={{ display: 'flex', gap: 0, flex: 1, overflow: 'hidden', minHeight: 0 }}>

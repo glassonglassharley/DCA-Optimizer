@@ -139,6 +139,7 @@ export default async function handler(req, res) {
         const finalChg = rv(price.regularMarketChangePercent) || regularMarketChangePercent;
 
         const forwardPE = rv(summary.forwardPE);
+        console.log(`[metrics] ${symbol} forwardPE raw:`, JSON.stringify(summary.forwardPE), '→ rv:', forwardPE);
         const fiftyTwoWeekHigh = rv(summary.fiftyTwoWeekHigh);
         const fiftyTwoWeekLow = rv(summary.fiftyTwoWeekLow);
         const targetPrice = rv(financial.targetMeanPrice);
