@@ -50,10 +50,10 @@ const TERMS = [
   },
   {
     key: 'signals',
-    term: 'BUY / HOLD / WAIT',
+    term: 'High DCA Score / Favorable Setup / Neutral / Wait Zone',
     cat: 'Signal',
-    def: 'BUY: multiple signals are aligned in your favour — RSI is low, valuation is reasonable, or analyst sentiment is positive. HOLD: no strong signal either way, continue your scheduled DCA. WAIT: one or more metrics are elevated enough that this period\'s capital may find better deployment elsewhere or should be deferred to next week.',
-    inApp: 'Ratings derive from the Composite Score. Score ≥ 6.5 = STRONG BUY or BUY. Score 4–6.5 = HOLD. Score < 4 = WAIT. These are context signals — your DCA schedule should drive the cadence. A WAIT rating means "consider skipping this buy" not "sell everything". Nothing here is financial advice.',
+    def: 'These labels summarize educational DCA conditions without telling you what to buy. High DCA Score means several public-market inputs line up with your selected plan. Neutral means mixed conditions. Wait Zone means current conditions score lower.',
+    inApp: 'Labels derive from the DCA Score. Score ≥ 7 = High DCA Score. Score 5.5–7 = Favorable Setup. Score 4–5.5 = Neutral. Score < 4 = Wait Zone. Your own DCA schedule should drive the cadence. Not personalized financial advice.',
     visual: null,
   },
   {
@@ -77,7 +77,7 @@ const TERMS = [
     term: 'Composite Score (0–10)',
     cat: 'Indicator',
     def: 'A single number that blends four independent signals — RSI (momentum), Fear & Greed (sentiment), Forward P/E (valuation), and analyst rating (consensus) — into one at-a-glance entry attractiveness measure. Higher means more signals are pointing toward a favourable entry. It is explicitly not a price prediction.',
-    inApp: 'Formula: Start at 5.0. RSI < 30 → +2 · RSI 30–50 → +1 · RSI > 70 → −2 · RSI 60–70 → −1. F&G < 30 → +1 · F&G > 70 → −1. F/PE < 20 → +1 · F/PE > 40 → −1. STRONG BUY → +1 · BUY → +0.5 · SELL/STRONG SELL → −1. Clamped 0–10, rounded to one decimal. Formula is open — no black box.',
+    inApp: 'Formula: Start at 5.0. RSI < 30 → +2 · RSI 30–50 → +1 · RSI > 70 → −2 · RSI 60–70 → −1. F&G < 30 → +1 · F&G > 70 → −1. F/PE < 20 → +1 · F/PE > 40 → −1. Analyst consensus may add or subtract modestly where available. Clamped 0–10, rounded to one decimal. Formula is open — no black box.',
     visual: null,
   },
   {

@@ -8,6 +8,11 @@ export const TICKER_COLORS = {
 };
 
 export const RATING_STYLES = {
+  'High DCA Score': { fg:'#4ade80', bg:'rgba(74,222,128,.12)', bd:'rgba(74,222,128,.4)' },
+  'Favorable Setup': { fg:'#10B981', bg:'rgba(16,185,129,.14)', bd:'rgba(16,185,129,.45)' },
+  'Neutral':     { fg:'#60A5FA', bg:'rgba(96,165,250,.14)', bd:'rgba(96,165,250,.45)' },
+  'Wait Zone':   { fg:'#F59E0B', bg:'rgba(245,158,11,.14)', bd:'rgba(245,158,11,.45)' },
+  'Low Score':   { fg:'#94A3B8', bg:'rgba(148,163,184,.16)',bd:'rgba(148,163,184,.45)' },
   'STRONG BUY': { fg:'#4ade80', bg:'rgba(74,222,128,.12)', bd:'rgba(74,222,128,.4)' },
   'BUY':        { fg:'#10B981', bg:'rgba(16,185,129,.14)', bd:'rgba(16,185,129,.45)' },
   'HOLD':       { fg:'#F59E0B', bg:'rgba(245,158,11,.14)', bd:'rgba(245,158,11,.45)' },
@@ -21,6 +26,21 @@ export const TAG_STYLES = {
   CORE:'#22D3EE', HEDGE:'#FBBF24', SAT:'#A78BFA', INCOME:'#34D399',
   CRYPTO:'#F97316', TECH:'#818CF8', STOCK:'#60A5FA', ETF:'#34D399',
 };
+
+export function displayRating(rating, score) {
+  if (score != null) {
+    if (score >= 7) return 'High DCA Score';
+    if (score >= 5.5) return 'Favorable Setup';
+    if (score >= 4) return 'Neutral';
+    return 'Wait Zone';
+  }
+  if (rating === 'STRONG BUY') return 'High DCA Score';
+  if (rating === 'BUY') return 'Favorable Setup';
+  if (rating === 'HOLD') return 'Neutral';
+  if (rating === 'WAIT') return 'Wait Zone';
+  if (rating === 'SELL' || rating === 'STRONG SELL' || rating === 'AVOID') return 'Low Score';
+  return rating || 'Neutral';
+}
 
 export const THEMES = {
   dark: {
@@ -50,18 +70,27 @@ export const GLOSSARY = [
   { key:'FG', term:'Fear & Greed Index', cat:'Sentiment',
     def:'0–100 market-sentiment gauge: 0 extreme fear, 100 extreme greed. Contrarian read — fear can precede bottoms.',
     example:'Reading 42 — mildly fearful, historically a constructive window for accumulators.' },
-  { key:'SCORE', term:'Composite Score', cat:'Internal',
-    def:'0–10 internal score combining RSI position, F&G, valuation (F/PE percentile), and trend. Higher = more attractive entry. Not advice.',
-    example:'XLV: RSI low + F&G fearful + F/PE in-range → 7.6/10.' },
+  { key:'SCORE', term:'DCA Score', cat:'Internal',
+    def:'0-10 educational score combining RSI position, F&G, valuation or drawdown, and trend. Higher means current public-market conditions line up better with your selected DCA plan. It is not personalized financial advice.',
+    example:'XLV: RSI cooling + F&G fearful + valuation in-range -> 7.6/10.' },
   { key:'OS', term:'Oversold / Overbought', cat:'Technical',
     def:'RSI states. Oversold (≤ 30) suggests selling may be exhausted; overbought (≥ 70) suggests buying may be exhausted.',
     example:'AIPO RSI 82 — deep into overbought territory.' },
   { key:'TAGS', term:'Core / Hedge / Satellite / Income', cat:'Strategy',
     def:'Portfolio role tags. Core = backbone. Hedge = diversifier. Satellite = higher-conviction smaller positions. Income = yield-focused.',
     example:'XLV is CORE — the largest, longest-held positions in your portfolio.' },
-  { key:'RATINGS', term:'Buy / Hold / Wait / Avoid', cat:'Internal',
-    def:'Action the composite score suggests. These reflect signals only — your DCA schedule overrides any rating.',
-    example:'WAIT means metrics are unfavorable today; skip this buy and DCA into something else.' },
+  { key:'RATINGS', term:'High DCA Score / Favorable Setup / Neutral / Wait Zone', cat:'Internal',
+    def:'Educational condition labels derived from the composite score. They summarize market data; they do not tell you what to buy or when to buy.',
+    example:'Wait Zone means current conditions score lower for this plan; your own DCA schedule still drives the decision.' },
+  { key:'ETF', term:'ETF / Index Fund', cat:'Strategy',
+    def:'A fund that tracks a basket of assets such as the S&P 500, Nasdaq 100, a sector, or a theme. ETFs can be more suitable for broad DCA plans than single-stock concentration.',
+    example:'VTI, VOO, QQQ, SCHD, and IBIT should be treated as ETFs, not individual operating companies.' },
+  { key:'DELAY', term:'Data Delay', cat:'Transparency',
+    def:'Market data can update at different times depending on the source. Price, RSI, valuation, sentiment, and score timestamps should be checked before relying on a reading.',
+    example:'Price as of 9:40 AM; score calculated at 9:42 AM.' },
+  { key:'RISK', term:'Risk Tolerance', cat:'Strategy',
+    def:'A setting that describes how conservative or aggressive your DCA plan is. It should shape score interpretation, not override your personal judgment.',
+    example:'A conservative plan may favor broad ETFs and lower volatility over speculative assets.' },
   { key:'MA200', term:'200-day Moving Average', cat:'Technical',
     def:'Average closing price over the last 200 trading days. Price above = uptrend, below = downtrend.',
     example:'QQQ is currently 11% above its 200-day MA — extended.' },

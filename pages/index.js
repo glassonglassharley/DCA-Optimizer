@@ -3,7 +3,7 @@ import Head from 'next/head';
 import { Ic } from '../components/icons';
 import {
   TICKER_COLORS, RATING_STYLES, TAG_STYLES, THEMES, GLOSSARY,
-  getColor, fgColor, fgLabel, rsiSignalColor, shade, fmtPrice, computeScore,
+  getColor, fgColor, fgLabel, rsiSignalColor, shade, fmtPrice, computeScore, displayRating,
 } from '../components/tokens';
 
 // ─── Atoms ────────────────────────────────────────────────────────────────────
@@ -53,8 +53,9 @@ function Card({ style, children, theme, cardStyle = 'flat', tint, onClick }) {
   );
 }
 
-function RatingPill({ rating, large }) {
-  const s = RATING_STYLES[rating] || RATING_STYLES['HOLD'];
+function RatingPill({ rating, score, large }) {
+  const label = displayRating(rating, score);
+  const s = RATING_STYLES[label] || RATING_STYLES['Neutral'];
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -63,7 +64,7 @@ function RatingPill({ rating, large }) {
       color: s.fg, fontWeight: 700, fontSize: large ? 12 : 10.5, letterSpacing: '.06em',
     }}>
       <span style={{ width: 6, height: 6, borderRadius: 999, background: s.fg, boxShadow: `0 0 8px ${s.fg}` }}/>
-      {rating}
+      {label}
     </span>
   );
 }
@@ -362,10 +363,10 @@ function NotifBar({ theme, holdings }) {
     const msgs = [];
     holdings.forEach(h => {
       if (h.rsi != null && h.rsi < 30) msgs.push({ c: '#10B981', msg: `${h.sym} RSI ${h.rsi} — approaching oversold` });
-      if (h.rsi != null && h.rsi > 70) msgs.push({ c: '#EF4444', msg: `${h.sym} RSI ${h.rsi} — overbought, consider waiting` });
-      if (h.rating === 'BUY' || h.rating === 'STRONG BUY') msgs.push({ c: '#10B981', msg: `${h.sym} rated ${h.rating} today` });
+      if (h.rsi != null && h.rsi > 70) msgs.push({ c: '#F59E0B', msg: `${h.sym} RSI ${h.rsi} — elevated momentum` });
+      if (h.score >= 7) msgs.push({ c: '#10B981', msg: `${h.sym} currently has a High DCA Score` });
     });
-    if (!msgs.length) msgs.push({ c: theme.brand, msg: 'DCA Tracker — transparent analytics, not advice' });
+    if (!msgs.length) msgs.push({ c: theme.brand, msg: 'A transparent DCA watchlist for your next scheduled buy' });
     return msgs.slice(0, 4);
   }, [holdings]);
 
@@ -405,9 +406,9 @@ function TransparencyBar({ theme, onLearn }) {
         fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 13,
       }}>i</div>
       <div style={{ flex: 1, fontSize: 11, color: theme.text2, lineHeight: 1.45 }}>
-        <b style={{ color: theme.text }}>Nothing here is advice.</b> Just a transparent view of public market data
-        (price, RSI, F&G, F/PE) and how it scores against your DCA plan.{' '}
-        <a onClick={onLearn} style={{ color: theme.brand, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}>Glossary →</a>
+        <b style={{ color: theme.text }}>Educational market data only.</b> A transparent view of
+        price, RSI, F&G, F/PE, timestamps, and how each ticker scores against your DCA plan.{' '}
+        <a onClick={onLearn} style={{ color: theme.brand, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}>Methodology →</a>
       </div>
     </div>
   );
@@ -452,7 +453,7 @@ function SignIn({ theme, onEnter }) {
         }}>{Ic.logo(34, '#fff')}</div>
         <div style={{ fontSize: 26, fontWeight: 700, color: theme.text, letterSpacing: '-.03em', marginTop: 14 }}>DCA Tracker</div>
         <div style={{ fontSize: 12.5, color: theme.text2, marginTop: 4, textAlign: 'center', maxWidth: 260, lineHeight: 1.45 }}>
-          Pick a username — your watchlist syncs to any device.
+          A transparent DCA watchlist that helps you understand market conditions before your next scheduled buy.
         </div>
       </div>
 
@@ -503,7 +504,7 @@ function SignIn({ theme, onEnter }) {
         </button>
 
         <div style={{ fontSize: 10, color: theme.text3, textAlign: 'center', lineHeight: 1.5, padding: '4px 8px 16px' }}>
-          Public watchlist — anyone with your username can view it. Public market data only. <b style={{ color: theme.text2 }}>Nothing here is financial advice.</b>
+          No email. No password. No brokerage connection. Public market data only. <b style={{ color: theme.text2 }}>Not personalized financial advice.</b>
         </div>
       </div>
     </div>
@@ -521,7 +522,7 @@ function Dashboard({ theme, navigate, user, holdings, loading, onRefresh }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <StaxHeader theme={theme} user={user} onAdd={() => navigate('add')} onBell={() => {}} onGlossary={() => { window.location.href = '/glossary'; }} notifs={holdings.some(h => h.rsi != null && h.rsi < 30)}/>
       <NotifBar theme={theme} holdings={holdings}/>
-      <TransparencyBar theme={theme} onLearn={() => { window.location.href = '/glossary'; }}/>
+      <TransparencyBar theme={theme} onLearn={() => { window.location.href = '/methodology'; }}/>
 
       {top && (
         <div style={{ padding: '0 16px' }}>
@@ -532,7 +533,7 @@ function Dashboard({ theme, navigate, user, holdings, loading, onRefresh }) {
       {chartData.length > 0 && (
         <div style={{ padding: '0 16px' }}>
           <Card theme={theme}>
-            <SectionHead theme={theme} title="Scores" sub="0–10 composite signal"/>
+            <SectionHead theme={theme} title="DCA Scores" sub="0-10 educational condition score by asset type"/>
             <ScoresChart data={chartData} theme={theme} focused={focused} onPick={s => setFocused(focused === s ? null : s)}/>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14, paddingTop: 10, borderTop: `1px solid ${theme.line}` }}>
               {chartData.slice(0, 6).map(d => {
@@ -585,14 +586,15 @@ function SectionHead({ theme, title, sub }) {
 
 function TopPickCard({ theme, holding: h, onOpen }) {
   const c = getColor(h.sym);
+  const scoreTime = h.updatedAt ? new Date(h.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'latest refresh';
   return (
     <Card theme={theme} tint={c} style={{ padding: 0, overflow: 'hidden', cursor: 'pointer' }} onClick={onOpen}>
       <div style={{ padding: '14px 16px 12px', background: `linear-gradient(135deg, ${c}1A, transparent 60%)`, borderBottom: `1px solid ${theme.line}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           {Ic.trophy(16, '#FBBF24')}
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.12em', color: theme.text2 }}>TODAY&apos;S TOP PICK</span>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.12em', color: theme.text2 }}>WATCHLIST LEADER</span>
           <span style={{ marginLeft: 'auto', fontSize: 10, color: theme.text3, fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: 4 }}>
-            {Ic.spark(11, '#FBBF24')} live data
+            {Ic.spark(11, '#FBBF24')} score at {scoreTime}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -608,13 +610,13 @@ function TopPickCard({ theme, holding: h, onOpen }) {
               <span><span style={{ color: theme.text3 }}>$ </span><b style={{ color: theme.text }}>{fmtPrice(h.price)}</b></span>
             </div>
           </div>
-          <RatingPill rating={h.rating} large/>
+          <RatingPill rating={h.rating} score={h.score} large/>
         </div>
       </div>
       <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(16,185,129,.14)', border: '1px solid rgba(16,185,129,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>💡</div>
         <div style={{ flex: 1, fontSize: 12, color: theme.text2, lineHeight: 1.4 }}>
-          {h.why || `Score ${h.score}/10 — ${h.rating === 'BUY' || h.rating === 'STRONG BUY' ? 'favorable entry conditions today' : 'monitor for better entry'}`}
+          {h.why || `Score ${h.score}/10 — market conditions currently score ${h.score >= 5.5 ? 'well' : 'lower'} for this DCA plan`}
         </div>
         {Ic.chevR(16, theme.text3)}
       </div>
@@ -636,7 +638,7 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh }) {
           </button>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 60px 64px 50px 38px 1fr', gap: 8, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
-          {['ASSET', 'TAG', 'RATING', 'SCORE', 'F&G', 'PRICE'].map((h, i) => (
+          {['ASSET', 'TYPE', 'DCA LABEL', 'SCORE', 'F&G', 'PRICE'].map((h, i) => (
             <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 3 ? 'right' : 'left' }}>{h}</div>
           ))}
         </div>
@@ -667,7 +669,7 @@ function HoldingRow({ h, theme, last, onClick }) {
         </div>
       </div>
       <div><TagPill tag={h.tag || 'STOCK'} theme={theme}/></div>
-      <div><RatingPill rating={h.rating || 'HOLD'}/></div>
+      <div><RatingPill rating={h.rating || 'HOLD'} score={h.score}/></div>
       <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: c }}>{h.score}</div>
       <div style={{ textAlign: 'right' }}><FGPill v={h.fg}/></div>
       <div style={{ textAlign: 'right' }}>
@@ -708,7 +710,7 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
             <div style={{ fontSize: 10.5, color: theme.text3 }}>{h.name || sym}</div>
           </div>
         </div>
-        <RatingPill rating={h.rating || 'HOLD'} large/>
+        <RatingPill rating={h.rating || 'HOLD'} score={h.score} large/>
       </div>
 
       <div style={{ padding: '0 16px' }}>
@@ -742,6 +744,18 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
           maxValue={60} bar={h.fpe != null}/>
       </div>
 
+      <div style={{ padding: '0 16px' }}>
+        <Card theme={theme} style={{ padding: '12px 14px' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: theme.text, marginBottom: 8 }}>Data freshness</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 10.5, color: theme.text2, lineHeight: 1.45 }}>
+            <span>Price as of: {h.updatedAt ? new Date(h.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'latest refresh'}</span>
+            <span>RSI as of: {h.updatedAt ? new Date(h.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'latest refresh'}</span>
+            <span>Forward P/E as of: latest provider refresh</span>
+            <span>Score calculated: {h.updatedAt ? new Date(h.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'latest refresh'}</span>
+          </div>
+        </Card>
+      </div>
+
       {h.fpe != null && (
         <div style={{ padding: '0 16px' }}>
           <Card theme={theme} style={{ padding: '12px 14px' }}>
@@ -765,7 +779,7 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
         <Card theme={theme}>
           <div style={{ fontSize: 13, fontWeight: 700, color: theme.text, marginBottom: 6 }}>Why this rating?</div>
           <div style={{ fontSize: 12, color: theme.text2, lineHeight: 1.5 }}>
-            {h.why || `Based on composite score of ${h.score}/10 from RSI position, market sentiment, and valuation metrics.`}
+            {h.why || `Based on a DCA score of ${h.score}/10 from RSI position, market sentiment, valuation or drawdown, and trend context.`}
           </div>
           <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${theme.line}`, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {[
@@ -784,7 +798,7 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
       </div>
 
       <div style={{ padding: '0 16px', display: 'flex', gap: 10 }}>
-        <button style={{ flex: 1, height: 46, borderRadius: 12, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`, color: '#fff', fontWeight: 700, fontSize: 13, boxShadow: `0 8px 20px ${theme.brand}55` }}>Log a Buy</button>
+        <button style={{ flex: 1, height: 46, borderRadius: 12, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`, color: '#fff', fontWeight: 700, fontSize: 13, boxShadow: `0 8px 20px ${theme.brand}55` }}>Record DCA Note</button>
         <button style={{ flex: 1, height: 46, borderRadius: 12, cursor: 'pointer', border: `1px solid ${theme.line2}`, background: theme.pillBg, color: theme.text, fontWeight: 600, fontSize: 13 }}>Set Alert</button>
       </div>
       <div style={{ height: 80 }}/>
@@ -976,9 +990,9 @@ function SettingsScreen({ theme, onBack, onGlossary, onSignOut, user }) {
       </div>
 
       {[
-        { title: 'PORTFOLIO', items: [{ label: 'DCA Frequency', val: 'Weekly', icon: '🔁' }, { label: 'Buy Day', val: 'Mondays', icon: '📅' }, { label: 'Target Allocation', val: 'Balanced', icon: '⚖️' }] },
-        { title: 'SIGNALS', items: [{ label: 'RSI strategy', val: '5/95 extremes', icon: '⚙️' }, { label: 'Alert thresholds', val: 'RSI 5/95', icon: '🎯' }, { label: 'Data refresh', val: 'Every 60m', icon: '🔄' }] },
-        { title: 'LEARN & TRANSPARENCY', items: [{ label: 'Glossary of terms', val: `${GLOSSARY.length} entries`, icon: '📖', onClick: onGlossary }, { label: 'Score methodology', val: 'Open formula', icon: '🧮' }, { label: 'Data sources', val: 'Yahoo Finance, Alt.me', icon: '🔗' }] },
+        { title: 'DCA PLAN', items: [{ label: 'DCA cadence', val: 'Weekly', icon: '🔁' }, { label: 'Risk tolerance', val: 'Balanced', icon: '⚖️' }, { label: 'Asset focus', val: 'Stocks / ETFs / Crypto', icon: '🧭' }, { label: 'Max allocation', val: 'Plan note', icon: '📏' }] },
+        { title: 'SIGNALS', items: [{ label: 'Preferred indicators', val: 'RSI, trend, valuation', icon: '⚙️' }, { label: 'Asset-specific scoring', val: 'Crypto ≠ equities', icon: '🎯' }, { label: 'Data refresh', val: 'Every 60m', icon: '🔄' }] },
+        { title: 'LEARN & TRANSPARENCY', items: [{ label: 'Glossary of terms', val: `${GLOSSARY.length} entries`, icon: '📖', onClick: onGlossary }, { label: 'Score methodology', val: 'Open formula', icon: '🧮', onClick: () => { window.location.href = '/methodology'; } }, { label: 'Data sources', val: 'Yahoo Finance, Alt.me', icon: '🔗', onClick: () => { window.location.href = '/methodology'; } }] },
       ].map(group => (
         <div key={group.title} style={{ padding: '0 16px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.12em', color: theme.text3, padding: '4px 4px 8px' }}>{group.title}</div>
@@ -1007,10 +1021,12 @@ function SettingsScreen({ theme, onBack, onGlossary, onSignOut, user }) {
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 function tagFor(sym) {
-  const crypto = ['BTC', 'ETH', 'SOL', 'HYPE', 'COIN'];
+  const crypto = ['BTC', 'BTC-USD', 'ETH', 'ETH-USD', 'SOL', 'SOL-USD', 'HYPE'];
+  const etfs = ['SPY', 'VOO', 'VTI', 'QQQ', 'SCHD', 'XLV', 'DIVO', 'IBIT'];
   const income = ['DIVO'];
   const hedge = ['GLD'];
   if (crypto.includes(sym)) return 'CRYPTO';
+  if (etfs.includes(sym)) return 'ETF';
   if (income.includes(sym)) return 'INCOME';
   if (hedge.includes(sym)) return 'HEDGE';
   return 'STOCK';
@@ -1111,7 +1127,7 @@ export default function Home() {
     for (const r of results) {
       if (r.status === 'fulfilled') {
         const [ticker, data] = r.value;
-        updated[ticker] = data;
+        updated[ticker] = { ...data, fetchedAt: new Date().toISOString() };
       }
     }
     setMetricsMap(updated);
@@ -1143,6 +1159,7 @@ export default function Home() {
         score,
         tag: tagFor(sym),
         why: null,
+        updatedAt: m.fetchedAt || null,
       };
     }).sort((a, b) => b.score - a.score);
   }, [selectedTickers, metricsMap, fgIndex]);
