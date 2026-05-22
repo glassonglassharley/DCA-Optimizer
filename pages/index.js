@@ -293,7 +293,10 @@ function PercentileBar({ theme, v, sectorAvg }) {
 
 // ─── Header / Nav ─────────────────────────────────────────────────────────────
 
-function StaxHeader({ theme, onAdd, onBell, onGlossary, notifs, user }) {
+function StaxHeader({ theme, onAdd, onGlossary, user, fgIndex }) {
+  const [fgOpen, setFgOpen] = useState(false);
+  const fgC = fgIndex != null ? fgColor(fgIndex) : theme.text3;
+  const fgLbl = fgIndex != null ? fgLabel(fgIndex) : null;
   return (
     <div style={{ padding: '10px 20px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -311,10 +314,29 @@ function StaxHeader({ theme, onAdd, onBell, onGlossary, notifs, user }) {
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {fgIndex != null && (
+          <div onClick={() => setFgOpen(v => !v)} style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            padding: fgOpen ? '4px 10px' : '4px 9px', borderRadius: 9,
+            background: fgC + '18', border: `1px solid ${fgC}40`,
+            marginRight: 2, cursor: 'pointer', transition: 'all .15s',
+          }}>
+            {fgOpen ? (
+              <div style={{ fontSize: 10, fontWeight: 700, color: fgC, whiteSpace: 'nowrap', lineHeight: 1.4, textAlign: 'center' }}>
+                <div style={{ fontFamily: 'var(--font-mono)' }}>F&amp;G {fgIndex}</div>
+                <div style={{ fontSize: 8.5, letterSpacing: '.04em' }}>{fgLbl}</div>
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 14, fontWeight: 700, color: fgC, fontFamily: 'var(--font-mono)', lineHeight: 1.1 }}>{fgIndex}</div>
+                <div style={{ fontSize: 7.5, fontWeight: 700, color: fgC, letterSpacing: '.06em', textTransform: 'uppercase', lineHeight: 1.1 }}>F&amp;G</div>
+              </>
+            )}
+          </div>
+        )}
         <IconBtn theme={theme} onClick={onGlossary}>
           <span style={{ fontSize: 14, fontWeight: 700, color: theme.text2, fontFamily: 'var(--font-mono)' }}>?</span>
         </IconBtn>
-        <IconBtn theme={theme} onClick={onBell} badge={notifs}>{Ic.bell(18, theme.text2)}</IconBtn>
         <button onClick={onAdd} style={{
           height: 34, padding: '0 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
           background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`,
@@ -392,7 +414,7 @@ function NotifBar({ theme, holdings }) {
     holdings.forEach(h => {
       if (h.rsi != null && h.rsi < 30) msgs.push({ c: '#10B981', msg: `${h.sym} RSI ${h.rsi} — approaching oversold` });
       if (h.rsi != null && h.rsi > 70) msgs.push({ c: '#EF4444', msg: `${h.sym} RSI ${h.rsi} — overbought, consider waiting` });
-      if (h.rating === 'BUY' || h.rating === 'STRONG BUY') msgs.push({ c: '#10B981', msg: `${h.sym} — ${RATING_LABELS[h.rating]} signal today` });
+      if (h.displayRating === 'BUY' || h.displayRating === 'STRONG BUY') msgs.push({ c: '#10B981', msg: `${h.sym} — ${RATING_LABELS[h.displayRating]} signal today` });
     });
     if (!msgs.length) msgs.push({ c: theme.brand, msg: 'DCA Tracker — transparent analytics, not advice' });
     return msgs.slice(0, 4);
@@ -544,14 +566,14 @@ function SignIn({ theme, onEnter }) {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-function Dashboard({ theme, navigate, user, holdings, loading, onRefresh, lastRefreshed }) {
+function Dashboard({ theme, navigate, user, holdings, loading, onRefresh, lastRefreshed, fgIndex }) {
   const [focused, setFocused] = useState(null);
   const top = holdings[0];
   const chartData = holdings.slice(0, 10);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <StaxHeader theme={theme} user={user} onAdd={() => navigate('add')} onBell={() => {}} onGlossary={() => { window.location.href = '/glossary'; }} notifs={holdings.some(h => h.rsi != null && h.rsi < 30)}/>
+      <StaxHeader theme={theme} user={user} fgIndex={fgIndex} onAdd={() => navigate('add')} onGlossary={() => { window.location.href = '/glossary'; }}/>
       <NotifBar theme={theme} holdings={holdings}/>
       <TransparencyBar theme={theme} onLearn={() => { window.location.href = '/glossary'; }}/>
 
@@ -640,13 +662,13 @@ function TopPickCard({ theme, holding: h, onOpen }) {
               <span><span style={{ color: theme.text3 }}>$ </span><b style={{ color: theme.text }}>{fmtPrice(h.price)}</b></span>
             </div>
           </div>
-          <RatingPill rating={h.rating} large/>
+          <RatingPill rating={h.displayRating || h.rating} large/>
         </div>
       </div>
       <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(16,185,129,.14)', border: '1px solid rgba(16,185,129,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>💡</div>
         <div style={{ flex: 1, fontSize: 12, color: theme.text2, lineHeight: 1.4 }}>
-          {h.why || `Score ${h.score}/10 — ${h.rating === 'BUY' || h.rating === 'STRONG BUY' ? 'market conditions currently score well for this DCA plan' : 'monitor for better entry'}`}{' '}
+          {h.why || `Score ${h.score}/10 — ${h.displayRating === 'BUY' || h.displayRating === 'STRONG BUY' ? 'market conditions currently score well for this DCA plan' : 'monitor for better entry'}`}{' '}
           <a href="/methodology" style={{ color: '#5BC8FF', fontSize: 11, textDecoration: 'none', whiteSpace: 'nowrap' }}>Methodology →</a>
         </div>
         {Ic.chevR(16, theme.text3)}
@@ -683,6 +705,12 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
         {holdings.map((h, i) => (
           <HoldingRow key={h.sym} h={h} theme={theme} last={i === holdings.length - 1} onClick={() => onPick(h.sym)}/>
         ))}
+        <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.6, paddingTop: 12, borderTop: '1px solid #1e2433', margin: '0 16px 16px' }}>
+          <div>* RSI — Relative Strength Index (14-day). ≤30 oversold · ≥70 overbought</div>
+          <div>* PE — Forward Price-to-Earnings ratio. &lt;15 undervalued · &gt;35 premium. Stocks only.</div>
+          <div>* 72MA — 72-day Exponential Moving Average. ▲ price above · ▼ price below. (Ian Dunlap)</div>
+          <div>* 200MA — 200-day Simple Moving Average. ▲ price above · ▼ price below. Long-term trend.</div>
+        </div>
       </Card>
     </div>
   );
@@ -706,7 +734,7 @@ function HoldingRow({ h, theme, last, onClick }) {
           </div>
         </div>
       </div>
-      <div><RatingPill rating={h.rating || 'HOLD'}/></div>
+      <div><RatingPill rating={h.displayRating || 'HOLD'}/></div>
       <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: c }}>{h.score}</div>
       <div style={{ textAlign: 'right' }}><MAPill above={h.aboveMa72}/></div>
       <div style={{ textAlign: 'right' }}><MAPill above={h.aboveMa200}/></div>
@@ -720,16 +748,57 @@ function HoldingRow({ h, theme, last, onClick }) {
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
-          {h.fpe != null && h.tag !== 'CRYPTO' && h.tag !== 'HEDGE' && (
-            <span style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: h.fpe < 15 ? '#10B981' : h.fpe <= 35 ? '#F59E0B' : '#EF4444' }}>
-              PE {parseFloat(h.fpe).toFixed(1)}
-            </span>
-          )}
-          <span style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: fgColor(h.fg) }}>
-            FG {h.fg ?? '—'}
-          </span>
+          <FPEChip fpe={h.fpe} tag={h.tag}/>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Recent News ──────────────────────────────────────────────────────────────
+
+function timeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 60) return `${Math.max(1, m)}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function RecentNews({ sym, theme }) {
+  const [articles, setArticles] = useState(null);
+  useEffect(() => {
+    fetch(`/api/news?tickers=${sym}`)
+      .then(r => r.json())
+      .then(d => setArticles(d.articles || []))
+      .catch(() => setArticles([]));
+  }, [sym]);
+
+  return (
+    <div style={{ padding: '0 16px' }}>
+      <Card theme={theme} style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '12px 14px 8px', fontSize: 13, fontWeight: 700, color: theme.text, borderBottom: `1px solid ${theme.line}` }}>Recent News</div>
+        {articles === null && (
+          <div style={{ padding: '12px 14px', fontSize: 12, color: theme.text3 }}>Loading…</div>
+        )}
+        {articles !== null && articles.length === 0 && (
+          <div style={{ padding: '12px 14px', fontSize: 12, color: theme.text3 }}>No recent news for {sym}</div>
+        )}
+        {articles !== null && articles.map((a, i) => (
+          <div key={i} style={{ padding: '10px 14px', borderBottom: i < articles.length - 1 ? `1px solid ${theme.line}` : 'none' }}>
+            <a href={a.url} target="_blank" rel="noopener noreferrer"
+              style={{ fontSize: 12.5, fontWeight: 500, color: theme.text, textDecoration: 'none', display: 'block', lineHeight: 1.45, marginBottom: 5 }}>
+              {a.title}
+            </a>
+            <div style={{ display: 'flex', gap: 6, fontSize: 10, color: theme.text3 }}>
+              <span>{a.source}</span>
+              <span>·</span>
+              <span>{timeAgo(a.publishedAt)}</span>
+            </div>
+          </div>
+        ))}
+      </Card>
     </div>
   );
 }
@@ -737,7 +806,7 @@ function HoldingRow({ h, theme, last, onClick }) {
 // ─── Asset Detail ─────────────────────────────────────────────────────────────
 
 function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
-  const h = holdings.find(x => x.sym === sym) || { sym, name: sym, price: null, rsi: null, fpe: null, fg: fgIndex, score: 5, rating: 'HOLD' };
+  const h = holdings.find(x => x.sym === sym) || { sym, name: sym, price: null, rsi: null, fpe: null, fg: fgIndex, score: 5, rating: 'HOLD', displayRating: 'HOLD' };
   const c = getColor(sym);
 
   const spark = useMemo(() => {
@@ -760,7 +829,7 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
             <div style={{ fontSize: 10.5, color: theme.text3 }}>{h.name || sym}</div>
           </div>
         </div>
-        <RatingPill rating={h.rating || 'HOLD'} large/>
+        <RatingPill rating={h.displayRating || 'HOLD'} large/>
       </div>
 
       <div style={{ padding: '0 16px' }}>
@@ -787,11 +856,10 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
       <div style={{ padding: '0 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <Stat theme={theme} label="Score" value={h.score} tint={c} maxValue={10} bar/>
         <Stat theme={theme} label="RSI (14)" value={h.rsi ?? '—'} tint={rsiSignalColor(h.rsi, theme)} maxValue={100} bar={h.rsi != null} zones/>
-        <Stat theme={theme} label="Fear & Greed" value={h.fg ?? fgIndex ?? '—'} tint={fgColor(h.fg ?? fgIndex)} maxValue={100} bar={h.fg != null || fgIndex != null}/>
         <Stat theme={theme} label="Forward P/E"
-          value={h.fpe != null ? parseFloat(h.fpe).toFixed(1) : 'n/a'}
+          value={h.fpe != null ? parseFloat(h.fpe).toFixed(1) : '—'}
           tint={h.fpe == null ? theme.text3 : (h.fpe > 40 ? '#EF4444' : h.fpe > 25 ? '#F59E0B' : '#10B981')}
-          maxValue={60} bar={h.fpe != null}/>
+          maxValue={60} bar={h.fpe != null} style={{ gridColumn: 'span 2' }}/>
       </div>
 
       {h.fpe != null && (
@@ -822,9 +890,8 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
           <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${theme.line}`, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {[
               ['Score', h.score],
-              ['RSI', h.rsi ?? 'n/a'],
-              ['F&G', h.fg ?? fgIndex ?? 'n/a'],
-              ['F/PE', h.fpe != null ? parseFloat(h.fpe).toFixed(1) : 'n/a'],
+              ['RSI', h.rsi ?? '—'],
+              ['F/PE', h.fpe != null ? parseFloat(h.fpe).toFixed(1) : '—'],
               ['Tag', h.tag || 'STOCK'],
             ].map(([k, v]) => (
               <div key={k} style={{ padding: '5px 9px', borderRadius: 8, background: theme.bg2, border: `1px solid ${theme.line}`, fontSize: 10.5 }}>
@@ -833,6 +900,12 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
             ))}
           </div>
         </Card>
+      </div>
+
+      <RecentNews sym={sym} theme={theme}/>
+
+      <div style={{ padding: '0 16px', textAlign: 'center', fontSize: 11, color: '#475569', lineHeight: 1.6 }}>
+        Educational market data only. Analyst ratings sourced from Yahoo Finance. Not financial advice.
       </div>
 
       <div style={{ padding: '0 16px', display: 'flex', gap: 10 }}>
@@ -1483,6 +1556,22 @@ function CalculatorScreen({ theme, holdings }) {
         </div>
       )}
 
+      {/* Footnote legend */}
+      <div style={{ padding: '0 16px' }}>
+        <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.6, paddingTop: 12, borderTop: '1px solid #1e2433' }}>
+          <div style={{ marginBottom: 8 }}>How this works</div>
+          <div>* Ticker — select any asset from your watchlist to backtest</div>
+          <div>* Amount — how much you invest per week or month</div>
+          <div>* Frequency — Weekly buys on your chosen day · Monthly buys on your chosen date</div>
+          <div>* RSI Threshold — Smart DCA only buys when RSI drops below this number (default 35)</div>
+          <div style={{ marginBottom: 8 }}>* Backtest Period — how many months of historical price data to simulate against</div>
+          <div>Smart DCA — only deploys capital when RSI is at or below your threshold. Fewer buys, potentially lower average cost basis.</div>
+          <div style={{ marginBottom: 8 }}>Blind DCA — buys on every scheduled interval regardless of market conditions. More consistent, higher average cost basis during rallies.</div>
+          <div style={{ marginBottom: 8 }}>The dollar difference shown is how much Smart DCA would have saved per unit vs Blind DCA over the selected period.</div>
+          <div>* Based on historical Yahoo Finance price data only. Not a prediction. Not financial advice.</div>
+        </div>
+      </div>
+
       <div style={{ height: 80 }}/>
     </div>
   );
@@ -1682,7 +1771,7 @@ function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgInd
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 function tagFor(sym) {
-  const crypto = ['BTC', 'ETH', 'SOL', 'HYPE', 'COIN', 'MSTR'];
+  const crypto = ['BTC', 'ETH', 'SOL', 'HYPE', 'COIN'];
   const income = ['DIVO'];
   const hedge = ['GLD'];
   if (crypto.includes(sym)) return 'CRYPTO';
@@ -1699,7 +1788,7 @@ export default function Home() {
   const [user, setUser] = useState(null);
   const [selectedTickers, setSelectedTickers] = useState([]);
   const [metricsMap, setMetricsMap] = useState({});
-  const [fgIndex, setFgIndex] = useState(50);
+  const [fgIndex, setFgIndex] = useState(null);
   const [loading, setLoading] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState(null);
   const didMount = useRef(false);
@@ -1766,9 +1855,21 @@ export default function Home() {
     if (tab === 'glossary') replace('glossary');
   }, [tab]);
 
-  // Fetch Fear & Greed index once
+  // Fetch Fear & Greed index — server first, browser fallback to alternative.me
   useEffect(() => {
-    fetch('/api/feargreed').then(r => r.json()).then(d => { if (d.value != null) setFgIndex(d.value); }).catch(() => {});
+    fetch('/api/feargreed')
+      .then(r => r.json())
+      .then(d => {
+        if (d.value != null) {
+          setFgIndex(d.value);
+        } else {
+          return fetch('https://api.alternative.me/fng/?limit=1')
+            .then(r => r.json())
+            .then(data => { if (data.data?.[0]) setFgIndex(parseInt(data.data[0].value)); })
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Fetch metrics for selected tickers
@@ -1811,6 +1912,7 @@ export default function Home() {
       const aboveMa72 = m.aboveMa72 ?? null;
       const aboveMa200 = m.aboveMa200 ?? null;
       const score = computeScore(rsi, fgIndex, isCrypto ? null : fpe, rating, isCrypto, aboveMa72, aboveMa200);
+      const displayRating = score >= 8 ? 'STRONG BUY' : score >= 6 ? 'BUY' : score >= 4 ? 'HOLD' : 'WAIT';
       return {
         sym,
         name: m.name || sym,
@@ -1820,6 +1922,7 @@ export default function Home() {
         fpe,
         fg: fgIndex,
         rating,
+        displayRating,
         score,
         tag,
         ma72: m.ma72 || null,
@@ -1849,13 +1952,13 @@ export default function Home() {
 
   let body;
   if (cur.screen === 'signin') body = <SignIn theme={theme} onEnter={handleEnter}/>;
-  else if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed}/>;
+  else if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex}/>;
   else if (cur.screen === 'detail') body = <AssetDetail theme={theme} sym={cur.arg} onBack={back} holdings={holdings} fgIndex={fgIndex}/>;
   else if (cur.screen === 'add') body = <AddTicker theme={theme} onBack={back} selectedTickers={selectedTickers} onToggle={toggleTicker}/>;
   else if (cur.screen === 'glossary') body = <GlossaryScreen theme={theme} onBack={back}/>;
   else if (cur.screen === 'settings') body = <SettingsScreen theme={theme} onBack={back} onGlossary={() => replace('glossary')} onSignOut={handleSignOut} user={user}/>;
   else if (cur.screen === 'calculator') body = <CalculatorScreen theme={theme} holdings={holdings}/>;
-  else body = <Dashboard theme={theme} navigate={navigate} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed}/>;
+  else body = <Dashboard theme={theme} navigate={navigate} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex}/>;
 
   return (
     <>
