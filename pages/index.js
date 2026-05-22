@@ -314,7 +314,7 @@ function BottomNav({ theme, tab, setTab, onAdd }) {
   const tabs = [
     { id: 'home',  label: 'Home',     icon: Ic.home },
     { id: 'list',  label: 'Watch',    icon: Ic.list },
-    { id: 'chart', label: 'Stats',    icon: Ic.chart },
+    { id: 'calc',  label: 'Calc',     icon: Ic.calc },
     { id: 'gear',  label: 'Settings', icon: Ic.gear },
   ];
   return (
@@ -1004,6 +1004,560 @@ function SettingsScreen({ theme, onBack, onGlossary, onSignOut, user }) {
   );
 }
 
+// ─── Calculator ───────────────────────────────────────────────────────────────
+
+function fmt$(n) {
+  if (n == null || isNaN(n)) return '—';
+  if (n >= 1000) return '$' + n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  return '$' + n.toFixed(2);
+}
+
+function fmtUnits(n) {
+  if (n == null || isNaN(n)) return '—';
+  if (n >= 1000) return n.toLocaleString('en-US', { maximumFractionDigits: 4 });
+  return n.toFixed(4);
+}
+
+function DualLineChart({ smartTimeline, blindTimeline, theme }) {
+  const w = 320, h = 160, pad = { l: 44, r: 8, t: 10, b: 22 };
+  const innerW = w - pad.l - pad.r;
+  const innerH = h - pad.t - pad.b;
+
+  const allValues = [
+    ...smartTimeline.map(t => t.costBasis).filter(v => v != null),
+    ...blindTimeline.map(t => t.costBasis).filter(v => v != null),
+  ];
+  if (!allValues.length) return null;
+
+  const minV = Math.min(...allValues) * 0.97;
+  const maxV = Math.max(...allValues) * 1.03;
+  const n = Math.max(smartTimeline.length, blindTimeline.length);
+
+  const xs = (i, total) => pad.l + (i / Math.max(total - 1, 1)) * innerW;
+  const ys = (v) => pad.t + (1 - (v - minV) / (maxV - minV)) * innerH;
+
+  const buildPath = (tl) => {
+    const pts = tl.filter(t => t.costBasis != null);
+    if (!pts.length) return '';
+    return pts.map((t, i) => {
+      const xi = tl.indexOf(t);
+      return `${i === 0 ? 'M' : 'L'}${xs(xi, tl.length)},${ys(t.costBasis)}`;
+    }).join(' ');
+  };
+
+  const blindPath = buildPath(blindTimeline);
+  const smartPath = buildPath(smartTimeline);
+
+  // Y axis labels
+  const yTicks = [minV, (minV + maxV) / 2, maxV];
+
+  // X axis labels (first and last date)
+  const firstDate = blindTimeline[0]?.date || '';
+  const lastDate = blindTimeline[blindTimeline.length - 1]?.date || '';
+  const fmtDate = (d) => {
+    if (!d) return '';
+    const [, m, day] = d.split('-');
+    const months = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[+m]} ${+day}`;
+  };
+
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width="100%" style={{ display: 'block' }}>
+      {/* Grid lines */}
+      {yTicks.map((v, i) => (
+        <g key={i}>
+          <line x1={pad.l} x2={pad.l + innerW} y1={ys(v)} y2={ys(v)} stroke={theme.line} strokeDasharray="2 3"/>
+          <text x={pad.l - 3} y={ys(v) + 3} fontSize="8" fill={theme.text3} fontFamily="var(--font-mono)" textAnchor="end">
+            {v >= 1000 ? `$${Math.round(v / 100) / 10}k` : `$${Math.round(v)}`}
+          </text>
+        </g>
+      ))}
+      {/* X labels */}
+      <text x={pad.l} y={h - 2} fontSize="8" fill={theme.text3} fontFamily="var(--font-mono)">{fmtDate(firstDate)}</text>
+      <text x={pad.l + innerW} y={h - 2} fontSize="8" fill={theme.text3} fontFamily="var(--font-mono)" textAnchor="end">{fmtDate(lastDate)}</text>
+      {/* Lines */}
+      {blindPath && <path d={blindPath} fill="none" stroke="#5BC8FF" strokeWidth="1.5" opacity=".7"/>}
+      {smartPath && <path d={smartPath} fill="none" stroke="#10B981" strokeWidth="2"/>}
+      {/* End dots */}
+      {blindTimeline.filter(t => t.costBasis != null).slice(-1).map((t, i) => (
+        <circle key={i} cx={xs(blindTimeline.indexOf(t), blindTimeline.length)} cy={ys(t.costBasis)} r="3.5" fill="#5BC8FF" stroke={theme.card} strokeWidth="1.5"/>
+      ))}
+      {smartTimeline.filter(t => t.costBasis != null).slice(-1).map((t, i) => (
+        <circle key={i} cx={xs(smartTimeline.indexOf(t), smartTimeline.length)} cy={ys(t.costBasis)} r="3.5" fill="#10B981" stroke={theme.card} strokeWidth="1.5"/>
+      ))}
+    </svg>
+  );
+}
+
+function CalcMetricRow({ label, smartVal, blindVal, theme }) {
+  return (
+    <div style={{ display: 'flex', borderBottom: `1px solid ${theme.line}` }}>
+      <div style={{ flex: 1, padding: '10px 12px', borderRight: `1px solid ${theme.line}` }}>
+        <div style={{ fontSize: 9.5, color: theme.text3, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', marginBottom: 3 }}>{label}</div>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#10B981' }}>{smartVal}</div>
+      </div>
+      <div style={{ flex: 1, padding: '10px 12px' }}>
+        <div style={{ fontSize: 9.5, color: theme.text3, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', marginBottom: 3 }}>{label}</div>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: theme.text }}>{blindVal}</div>
+      </div>
+    </div>
+  );
+}
+
+function CalculatorScreen({ theme, holdings }) {
+  const tickers = holdings.map(h => h.sym);
+  const [ticker, setTicker] = useState(tickers[0] || '');
+  const [amount, setAmount] = useState('100');
+  const [frequency, setFrequency] = useState('weekly');
+  const [rsiThreshold, setRsiThreshold] = useState('35');
+  const [period, setPeriod] = useState('6m');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  const handleRun = async () => {
+    if (!ticker || loading) return;
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const r = await fetch(
+        `/api/calculator?symbol=${encodeURIComponent(ticker)}&period=${period}&rsiThreshold=${rsiThreshold}&amount=${amount}&frequency=${frequency}`
+      );
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      setResult(d);
+    } catch (e) {
+      setError(e.message || 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputStyle = {
+    border: 'none', outline: 'none', background: 'transparent',
+    color: theme.text, fontSize: 15, fontFamily: 'var(--font-mono)', fontWeight: 600,
+    width: '100%',
+  };
+
+  const fieldWrap = {
+    padding: '11px 14px', background: theme.card,
+    border: `1px solid ${theme.line2}`, borderRadius: 12,
+  };
+
+  const labelStyle = {
+    fontSize: 9.5, fontWeight: 700, letterSpacing: '.09em',
+    color: theme.text3, marginBottom: 5, display: 'block',
+  };
+
+  function Toggle({ options, value, onChange }) {
+    return (
+      <div style={{ display: 'flex', gap: 4, background: theme.bg2, borderRadius: 10, padding: 3, border: `1px solid ${theme.line}` }}>
+        {options.map(o => (
+          <button key={o.value} onClick={() => onChange(o.value)} style={{
+            flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', cursor: 'pointer',
+            background: value === o.value ? theme.brand + '22' : 'transparent',
+            color: value === o.value ? theme.brand : theme.text3,
+            fontWeight: value === o.value ? 700 : 500, fontSize: 12,
+            borderWidth: value === o.value ? 1 : 0, borderStyle: 'solid',
+            borderColor: value === o.value ? theme.brand + '55' : 'transparent',
+            transition: 'all .15s',
+          }}>{o.label}</button>
+        ))}
+      </div>
+    );
+  }
+
+  const s = result?.smart;
+  const b = result?.blind;
+
+  const advantage = (s && b && s.buyCount > 0 && b.avgCostBasis > 0 && s.avgCostBasis > 0)
+    ? (b.avgCostBasis - s.avgCostBasis) * s.totalUnits
+    : null;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Header */}
+      <div style={{ padding: '10px 20px 2px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 6px 16px ${theme.brand}55` }}>
+          {Ic.calc(18, '#fff')}
+        </div>
+        <div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: theme.text, letterSpacing: '-.02em' }}>DCA Calculator</div>
+          <div style={{ fontSize: 10, color: theme.text3, marginTop: 1 }}>Smart vs Blind · historical simulation</div>
+        </div>
+      </div>
+
+      {/* Form */}
+      <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* Ticker */}
+        <div>
+          <span style={labelStyle}>TICKER</span>
+          <div style={{ ...fieldWrap, display: 'flex', alignItems: 'center', gap: 8 }}>
+            {ticker && <div style={{ width: 22, height: 22, borderRadius: 7, background: getColor(ticker), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700, flex: '0 0 auto' }}>{ticker[0]}</div>}
+            <select value={ticker} onChange={e => setTicker(e.target.value)} style={{ ...inputStyle, cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none' }}>
+              {tickers.length === 0 && <option value="">Add tickers first</option>}
+              {tickers.map(sym => <option key={sym} value={sym}>{sym}</option>)}
+            </select>
+            {Ic.chevR(14, theme.text3)}
+          </div>
+        </div>
+
+        {/* Amount + Frequency */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div>
+            <span style={labelStyle}>INVEST PER PERIOD</span>
+            <div style={{ ...fieldWrap, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ color: theme.text3, fontSize: 14, fontFamily: 'var(--font-mono)', fontWeight: 700 }}>$</span>
+              <input
+                type="number"
+                min="1"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                style={{ ...inputStyle, width: '100%' }}
+              />
+            </div>
+          </div>
+          <div>
+            <span style={labelStyle}>FREQUENCY</span>
+            <Toggle
+              options={[{ value: 'weekly', label: 'Weekly' }, { value: 'monthly', label: 'Monthly' }]}
+              value={frequency}
+              onChange={setFrequency}
+            />
+          </div>
+        </div>
+
+        {/* RSI Threshold + Period */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div>
+            <span style={labelStyle}>RSI THRESHOLD</span>
+            <div style={{ ...fieldWrap, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 12, color: theme.text3, fontWeight: 600, whiteSpace: 'nowrap' }}>RSI &lt;</span>
+              <input
+                type="number"
+                min="1"
+                max="99"
+                value={rsiThreshold}
+                onChange={e => setRsiThreshold(e.target.value)}
+                style={{ ...inputStyle, width: '100%' }}
+              />
+            </div>
+          </div>
+          <div>
+            <span style={labelStyle}>TIME PERIOD</span>
+            <Toggle
+              options={[{ value: '6m', label: '6 months' }, { value: '12m', label: '12 months' }]}
+              value={period}
+              onChange={setPeriod}
+            />
+          </div>
+        </div>
+
+        {/* Run button */}
+        <button
+          onClick={handleRun}
+          disabled={!ticker || loading}
+          style={{
+            height: 50, borderRadius: 14, border: 'none', cursor: ticker && !loading ? 'pointer' : 'not-allowed',
+            background: ticker && !loading ? `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})` : theme.line,
+            color: ticker && !loading ? '#fff' : theme.text3,
+            fontWeight: 700, fontSize: 14, letterSpacing: '.02em',
+            boxShadow: ticker && !loading ? `0 8px 20px ${theme.brand}44` : 'none',
+            transition: 'all .15s', opacity: loading ? 0.65 : 1,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}
+        >
+          {loading ? (
+            <>Calculating<span style={{ opacity: 0.6 }}>…</span></>
+          ) : (
+            <>{Ic.calc(16, 'currentColor')} Run Simulation →</>
+          )}
+        </button>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div style={{ margin: '0 16px', padding: '12px 14px', borderRadius: 12, background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.3)', fontSize: 12, color: '#EF4444' }}>
+          {error}
+        </div>
+      )}
+
+      {/* Results */}
+      {result && s && b && (
+        <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Column headers */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+            <div style={{ padding: '8px 12px', background: 'rgba(16,185,129,.1)', border: '1px solid rgba(16,185,129,.3)', borderRadius: '12px 0 0 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 99, background: '#10B981', boxShadow: '0 0 8px #10B981' }}/>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#10B981', letterSpacing: '.06em' }}>SMART DCA</span>
+            </div>
+            <div style={{ padding: '8px 12px', background: theme.bg2, border: `1px solid ${theme.line2}`, borderRadius: '0 12px 0 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 99, background: theme.brand, opacity: 0.7 }}/>
+              <span style={{ fontSize: 11, fontWeight: 700, color: theme.text2, letterSpacing: '.06em' }}>BLIND DCA</span>
+            </div>
+          </div>
+
+          <Card theme={theme} style={{ padding: 0, overflow: 'hidden', borderRadius: '0 0 18px 18px', marginTop: -12, borderTop: 'none' }}>
+            <CalcMetricRow theme={theme} label="Avg Cost Basis"
+              smartVal={fmt$(s.avgCostBasis)} blindVal={fmt$(b.avgCostBasis)}/>
+            <CalcMetricRow theme={theme} label="Units Accumulated"
+              smartVal={fmtUnits(s.totalUnits)} blindVal={fmtUnits(b.totalUnits)}/>
+            <CalcMetricRow theme={theme} label="Total Invested"
+              smartVal={fmt$(s.totalInvested)} blindVal={fmt$(b.totalInvested)}/>
+            <div style={{ display: 'flex', borderBottom: `1px solid ${theme.line}` }}>
+              <div style={{ flex: 1, padding: '10px 12px', borderRight: `1px solid ${theme.line}` }}>
+                <div style={{ fontSize: 9.5, color: theme.text3, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', marginBottom: 3 }}>Portfolio Value</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#10B981' }}>{fmt$(s.portfolioValue)}</div>
+                <div style={{ fontSize: 9.5, color: theme.text3, marginTop: 2 }}>@ ${result.currentPrice?.toFixed(2)}</div>
+              </div>
+              <div style={{ flex: 1, padding: '10px 12px' }}>
+                <div style={{ fontSize: 9.5, color: theme.text3, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', marginBottom: 3 }}>Portfolio Value</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: theme.text }}>{fmt$(b.portfolioValue)}</div>
+                <div style={{ fontSize: 9.5, color: theme.text3, marginTop: 2 }}>@ ${result.currentPrice?.toFixed(2)}</div>
+              </div>
+            </div>
+
+            {/* Buy count row */}
+            <div style={{ display: 'flex' }}>
+              <div style={{ flex: 1, padding: '10px 12px', borderRight: `1px solid ${theme.line}` }}>
+                <div style={{ fontSize: 9.5, color: theme.text3, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', marginBottom: 3 }}>Buys Made</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: '#10B981' }}>{s.buyCount}</div>
+              </div>
+              <div style={{ flex: 1, padding: '10px 12px' }}>
+                <div style={{ fontSize: 9.5, color: theme.text3, fontWeight: 600, letterSpacing: '.07em', textTransform: 'uppercase', marginBottom: 3 }}>Buys Made</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 700, color: theme.text }}>{b.buyCount}</div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Advantage callout */}
+          {advantage != null && Math.abs(advantage) > 0.01 && (
+            <div style={{
+              padding: '12px 14px', borderRadius: 12,
+              background: advantage > 0 ? 'rgba(16,185,129,.08)' : 'rgba(239,68,68,.06)',
+              border: `1px solid ${advantage > 0 ? 'rgba(16,185,129,.3)' : 'rgba(239,68,68,.25)'}`,
+              display: 'flex', alignItems: 'center', gap: 10,
+            }}>
+              <div style={{ fontSize: 20, flex: '0 0 auto' }}>{advantage > 0 ? '🎯' : '📊'}</div>
+              <div>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: advantage > 0 ? '#10B981' : '#EF4444' }}>
+                  {advantage > 0
+                    ? `Smart DCA saves ${fmt$(Math.abs(advantage))} in cost basis`
+                    : `Blind DCA captured ${fmt$(Math.abs(advantage))} more value`}
+                </div>
+                <div style={{ fontSize: 11, color: theme.text2, marginTop: 2 }}>
+                  {advantage > 0
+                    ? `Lower avg entry by ${fmt$(b.avgCostBasis - s.avgCostBasis)}/unit on ${s.buyCount} selective buys`
+                    : `Market trended up — more buys = more units accumulated`}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {s.buyCount === 0 && (
+            <div style={{ padding: '12px 14px', borderRadius: 12, background: theme.bg2, border: `1px dashed ${theme.line2}`, fontSize: 12, color: theme.text2, textAlign: 'center' }}>
+              RSI never dropped below {rsiThreshold} during this period — Smart DCA made no buys. Try a higher threshold.
+            </div>
+          )}
+
+          {/* Chart */}
+          {s.buyCount > 0 && b.buyCount > 0 && (
+            <Card theme={theme}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: theme.text, marginBottom: 4 }}>Avg Cost Basis Over Time</div>
+              <div style={{ display: 'flex', gap: 14, marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 20, height: 2, borderRadius: 1, background: '#10B981' }}/>
+                  <span style={{ fontSize: 10, color: theme.text2, fontFamily: 'var(--font-mono)' }}>Smart DCA</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ width: 20, height: 2, borderRadius: 1, background: '#5BC8FF', opacity: 0.7 }}/>
+                  <span style={{ fontSize: 10, color: theme.text2, fontFamily: 'var(--font-mono)' }}>Blind DCA</span>
+                </div>
+              </div>
+              <DualLineChart smartTimeline={result.smart.timeline} blindTimeline={result.blind.timeline} theme={theme}/>
+            </Card>
+          )}
+
+          {/* Disclaimer */}
+          <div style={{
+            padding: '12px 14px', borderRadius: 12, marginBottom: 4,
+            background: theme.bg2, border: `1px dashed ${theme.line2}`,
+            fontSize: 10.5, color: theme.text3, lineHeight: 1.55, textAlign: 'center',
+          }}>
+            Based on historical price data only. Not a prediction. <b style={{ color: theme.text2 }}>Nothing here is financial advice.</b>
+          </div>
+        </div>
+      )}
+
+      <div style={{ height: 80 }}/>
+    </div>
+  );
+}
+
+// ─── Desktop Layout ───────────────────────────────────────────────────────────
+
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const check = () => setIsDesktop(window.innerWidth >= 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+  return isDesktop;
+}
+
+function DesktopSidebar({ theme, activeScreen, onNav, user }) {
+  const items = [
+    { id: 'home',       label: 'Home',       icon: Ic.home,  screen: 'dashboard' },
+    { id: 'calc',       label: 'Calculator', icon: Ic.calc,  screen: 'calculator' },
+    { id: 'glossary',   label: 'Glossary',   icon: Ic.book,  screen: 'glossary' },
+    { id: 'gear',       label: 'Settings',   icon: Ic.gear,  screen: 'settings' },
+  ];
+  return (
+    <div style={{
+      width: 200, background: '#0B1020',
+      borderRight: `1px solid rgba(255,255,255,.08)`,
+      display: 'flex', flexDirection: 'column',
+      position: 'sticky', top: 0, height: '100vh', overflow: 'hidden',
+      flex: '0 0 200px',
+    }}>
+      {/* Branding */}
+      <div style={{ padding: '22px 16px 18px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: `1px solid rgba(255,255,255,.06)` }}>
+        <div style={{
+          width: 30, height: 30, borderRadius: 9,
+          background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: `0 4px 12px ${theme.brand}55`,
+        }}>{Ic.logo(16, '#fff')}</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: theme.text, letterSpacing: '-.02em' }}>DCA Tracker</div>
+      </div>
+      {/* Nav items */}
+      <div style={{ flex: 1, padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {items.map(item => {
+          const on = activeScreen === item.screen || (item.screen === 'dashboard' && activeScreen === 'detail');
+          return (
+            <button key={item.id} onClick={() => onNav(item.screen)} style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+              borderRadius: 10, border: 'none', cursor: 'pointer',
+              background: on ? theme.brand + '18' : 'transparent',
+              color: on ? theme.brand : theme.text3,
+              fontWeight: on ? 600 : 500, fontSize: 13,
+              borderLeft: on ? `2px solid ${theme.brand}` : '2px solid transparent',
+              transition: 'all .15s', textAlign: 'left',
+            }}>
+              {item.icon(16, on ? theme.brand : theme.text3)}
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+      {/* User */}
+      {user && (
+        <div style={{ padding: '12px 16px 18px', borderTop: `1px solid rgba(255,255,255,.06)`, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 26, height: 26, borderRadius: 8, background: theme.brand + '28', color: theme.brand, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>
+            {(user || 'G').slice(0, 1).toUpperCase()}
+          </div>
+          <div style={{ fontSize: 12, color: theme.text2, fontWeight: 500, fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DesktopHeader({ theme, user, onAdd }) {
+  return (
+    <div style={{
+      padding: '16px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      borderBottom: `1px solid rgba(255,255,255,.06)`, background: '#0B1020',
+      position: 'sticky', top: 0, zIndex: 10,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: theme.text, letterSpacing: '-.01em' }}>Dashboard</div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {user && <div style={{ fontSize: 12, color: theme.text3, fontFamily: 'var(--font-mono)', background: theme.bg2, padding: '4px 10px', borderRadius: 7, border: `1px solid ${theme.line}` }}>@{user}</div>}
+        <button onClick={onAdd} style={{
+          height: 34, padding: '0 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
+          background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`,
+          color: '#fff', fontSize: 12, fontWeight: 600,
+          display: 'flex', alignItems: 'center', gap: 6,
+          boxShadow: `0 4px 12px ${theme.brand}44`,
+        }}>{Ic.plus(13, '#fff')} Add Ticker</button>
+      </div>
+    </div>
+  );
+}
+
+function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgIndex }) {
+  const [focused, setFocused] = useState(null);
+  const top = holdings[0];
+  const chartData = holdings.slice(0, 10);
+
+  return (
+    <div style={{ display: 'flex', gap: 0, flex: 1, overflow: 'hidden', minHeight: 0 }}>
+      {/* Left: Holdings table (60%) */}
+      <div style={{ flex: '0 0 60%', overflowY: 'auto', borderRight: `1px solid rgba(255,255,255,.06)`, padding: '24px 20px 24px 28px' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: theme.text3, letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 14 }}>Holdings</div>
+        <Card theme={theme} style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 60px 64px 50px 38px 1fr', gap: 8, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}` }}>
+            {['ASSET', 'TAG', 'RATING', 'SCORE', 'F&G', 'PRICE'].map((h, i) => (
+              <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 3 ? 'right' : 'left' }}>{h}</div>
+            ))}
+          </div>
+          {loading && holdings.length === 0 && (
+            <div style={{ padding: 24, textAlign: 'center', color: theme.text3, fontSize: 12 }}>Loading data…</div>
+          )}
+          {holdings.length === 0 && !loading && (
+            <div style={{ padding: 48, textAlign: 'center', color: theme.text3 }}>
+              <div style={{ fontSize: 32, marginBottom: 10 }}>📊</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: theme.text, marginBottom: 6 }}>No tickers yet</div>
+              <div style={{ fontSize: 12 }}>Use Add Ticker to start tracking</div>
+            </div>
+          )}
+          {holdings.map((h, i) => (
+            <HoldingRow key={h.sym} h={h} theme={theme} last={i === holdings.length - 1} onClick={() => navigate('detail', h.sym)}/>
+          ))}
+        </Card>
+        {holdings.length > 0 && (
+          <button onClick={onRefresh} style={{ marginTop: 12, fontSize: 11, fontWeight: 600, color: theme.text3, background: theme.bg2, border: `1px solid ${theme.line}`, padding: '6px 10px', borderRadius: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+            {Ic.refresh(12, theme.text3)} Refresh data
+          </button>
+        )}
+      </div>
+
+      {/* Right: Charts (40%) */}
+      <div style={{ flex: '0 0 40%', overflowY: 'auto', padding: '24px 28px 24px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {top && (
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: theme.text3, letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 12 }}>Top Pick</div>
+            <TopPickCard theme={theme} holding={top} onOpen={() => navigate('detail', top.sym)}/>
+          </div>
+        )}
+        {chartData.length > 0 && (
+          <Card theme={theme}>
+            <SectionHead theme={theme} title="Scores" sub="0–10 composite signal"/>
+            <ScoresChart data={chartData} theme={theme} focused={focused} onPick={s => setFocused(focused === s ? null : s)}/>
+          </Card>
+        )}
+        {chartData.length > 0 && (
+          <Card theme={theme}>
+            <SectionHead theme={theme} title="RSI" sub="14-day · oversold ≤ 30 · overbought ≥ 70"/>
+            <RSIChart data={chartData} theme={theme}/>
+          </Card>
+        )}
+        {chartData.length === 0 && !loading && (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: theme.text3 }}>
+            <div style={{ fontSize: 30, marginBottom: 10 }}>📈</div>
+            <div style={{ fontSize: 13, color: theme.text2 }}>Add tickers to see charts</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 function tagFor(sym) {
@@ -1018,6 +1572,7 @@ function tagFor(sym) {
 
 export default function Home() {
   const theme = THEMES.dark;
+  const isDesktop = useIsDesktop();
   const [authLoading, setAuthLoading] = useState(true);
   const [stack, setStack] = useState([{ screen: 'signin' }]);
   const [tab, setTab] = useState('home');
@@ -1088,7 +1643,7 @@ export default function Home() {
     if (tab === 'home') replace('dashboard');
     if (tab === 'gear') replace('settings');
     if (tab === 'list') replace('dashboard');
-    if (tab === 'chart') replace('dashboard');
+    if (tab === 'calc') replace('calculator');
   }, [tab]);
 
   // Fetch Fear & Greed index once
@@ -1151,39 +1706,92 @@ export default function Home() {
     setSelectedTickers(prev => prev.includes(sym) ? prev.filter(t => t !== sym) : [...prev, sym]);
   };
 
-  const onSignin = cur.screen === 'signin';
-
   if (authLoading) return <div style={{ background: theme.bg, minHeight: '100vh' }}/>;
 
+  const onSignin = cur.screen === 'signin';
+
+  // Desktop nav handler
+  const desktopNav = (screen) => {
+    replace(screen);
+    if (screen === 'dashboard') setTab('home');
+    else if (screen === 'calculator') setTab('calc');
+    else if (screen === 'settings') setTab('gear');
+  };
+
+  // Body for non-dashboard screens (used in both mobile and desktop secondary panels)
   let body;
   if (cur.screen === 'signin') body = <SignIn theme={theme} onEnter={handleEnter}/>;
   else if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics}/>;
   else if (cur.screen === 'detail') body = <AssetDetail theme={theme} sym={cur.arg} onBack={back} holdings={holdings} fgIndex={fgIndex}/>;
   else if (cur.screen === 'add') body = <AddTicker theme={theme} onBack={back} selectedTickers={selectedTickers} onToggle={toggleTicker}/>;
   else if (cur.screen === 'glossary') body = <GlossaryScreen theme={theme} onBack={back}/>;
-  else if (cur.screen === 'settings') body = <SettingsScreen theme={theme} onBack={back} onGlossary={() => { window.location.href = '/glossary'; }} onSignOut={handleSignOut} user={user}/>;
+  else if (cur.screen === 'settings') body = <SettingsScreen theme={theme} onBack={back} onGlossary={() => replace('glossary')} onSignOut={handleSignOut} user={user}/>;
+  else if (cur.screen === 'calculator') body = <CalculatorScreen theme={theme} holdings={holdings}/>;
   else body = <Dashboard theme={theme} navigate={navigate} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics}/>;
 
+  const fonts = (
+    <>
+      <link rel="preconnect" href="https://fonts.googleapis.com"/>
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>
+      <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    </>
+  );
+
+  const globalStyles = `
+    :root { --font-ui: "Geist", system-ui, sans-serif; --font-mono: "Geist Mono", ui-monospace, monospace; }
+    html, body { margin: 0; padding: 0; background: ${theme.bg}; font-family: var(--font-ui); -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    @keyframes staxFade { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+    button { font-family: inherit; }
+    input { font-family: inherit; }
+    select { font-family: inherit; }
+    ::-webkit-scrollbar { width: 0; }
+  `;
+
+  // ─── Desktop Layout ───────────────────────────────────────────
+  if (isDesktop && !onSignin) {
+    const isDashboard = cur.screen === 'dashboard';
+    return (
+      <>
+        <Head>
+          <title>DCA Tracker</title>
+          <meta name="description" content="Transparent DCA analytics — not advice"/>
+          <meta name="viewport" content="width=device-width, initial-scale=1"/>
+          {fonts}
+        </Head>
+        <style jsx global>{globalStyles}</style>
+
+        <div style={{ display: 'flex', minHeight: '100vh', background: theme.bg, color: theme.text, fontFamily: 'var(--font-ui)' }}>
+          <DesktopSidebar theme={theme} activeScreen={cur.screen} onNav={desktopNav} user={user}/>
+
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+            <DesktopHeader theme={theme} user={user} onAdd={() => navigate('add')}/>
+
+            <div style={{ flex: 1, display: isDashboard ? 'flex' : 'block', overflow: 'hidden', maxWidth: 1280, width: '100%', alignSelf: 'stretch' }}>
+              {isDashboard ? (
+                <DesktopDashboard theme={theme} holdings={holdings} loading={loading} navigate={navigate} onRefresh={fetchMetrics} fgIndex={fgIndex}/>
+              ) : (
+                <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 0 40px', overflowY: 'auto', height: '100%' }}>
+                  {body}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // ─── Mobile Layout ────────────────────────────────────────────
   return (
     <>
       <Head>
         <title>DCA Tracker</title>
         <meta name="description" content="Transparent DCA analytics — not advice"/>
         <meta name="viewport" content="width=device-width, initial-scale=1"/>
-        <link rel="preconnect" href="https://fonts.googleapis.com"/>
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>
-        <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+        {fonts}
       </Head>
-
-      <style jsx global>{`
-        :root { --font-ui: "Geist", system-ui, sans-serif; --font-mono: "Geist Mono", ui-monospace, monospace; }
-        html, body { margin: 0; padding: 0; background: ${theme.bg}; font-family: var(--font-ui); -webkit-font-smoothing: antialiased; }
-        * { box-sizing: border-box; }
-        @keyframes staxFade { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
-        button { font-family: inherit; }
-        input { font-family: inherit; }
-        ::-webkit-scrollbar { width: 0; }
-      `}</style>
+      <style jsx global>{globalStyles}</style>
 
       <div style={{ width: '100%', minHeight: '100vh', background: theme.bg, color: theme.text, fontFamily: 'var(--font-ui)', position: 'relative' }}>
         <div style={{ maxWidth: 430, margin: '0 auto', minHeight: '100vh', position: 'relative', overflow: 'hidden' }}>

@@ -80,4 +80,17 @@ export const Ic = {
       <path d="M6 6l12 12M18 6 6 18"/>
     </svg>
   ),
+  book: (s = 22, c = 'currentColor') => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+    </svg>
+  ),
+  calc: (s = 22, c = 'currentColor') => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="2" width="16" height="20" rx="2"/>
+      <rect x="7" y="5" width="10" height="4" rx="1" fill={c} opacity=".35" stroke="none"/>
+      <path d="M8 13h1M12 13h1M16 13h1M8 17h1M12 17h1M16 17h1"/>
+    </svg>
+  ),
 };

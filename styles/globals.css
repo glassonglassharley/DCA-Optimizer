@@ -1,3 +1,2 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Global reset — app uses inline styles exclusively */
+*, *::before, *::after { box-sizing: border-box; }
