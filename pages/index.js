@@ -1397,17 +1397,6 @@ function CalculatorScreen({ theme, holdings }) {
 
 // ─── Desktop Layout ───────────────────────────────────────────────────────────
 
-function useIsDesktop() {
-  const [isDesktop, setIsDesktop] = useState(false);
-  useEffect(() => {
-    const check = () => setIsDesktop(window.innerWidth >= 768);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
-  return isDesktop;
-}
-
 function DesktopSidebar({ theme, activeScreen, onNav, user }) {
   const items = [
     { id: 'home',       label: 'Home',       icon: Ic.home,  screen: 'dashboard' },
@@ -1487,6 +1476,40 @@ function DesktopHeader({ theme, user, onAdd }) {
         }}>{Ic.plus(13, '#fff')} Add Ticker</button>
       </div>
     </div>
+  );
+}
+
+function DesktopDashboardRight({ theme, holdings, loading, navigate, fgIndex }) {
+  const [focused, setFocused] = useState(null);
+  const top = holdings[0];
+  const chartData = holdings.slice(0, 10);
+  return (
+    <>
+      {top && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: theme.text3, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Top Pick</div>
+          <TopPickCard theme={theme} holding={top} onOpen={() => navigate('detail', top.sym)}/>
+        </div>
+      )}
+      {chartData.length > 0 && (
+        <Card theme={theme}>
+          <SectionHead theme={theme} title="Scores" sub="0–10 composite signal"/>
+          <ScoresChart data={chartData} theme={theme} focused={focused} onPick={s => setFocused(focused === s ? null : s)}/>
+        </Card>
+      )}
+      {chartData.length > 0 && (
+        <Card theme={theme}>
+          <SectionHead theme={theme} title="RSI" sub="14-day · ≤30 oversold · ≥70 overbought"/>
+          <RSIChart data={chartData} theme={theme}/>
+        </Card>
+      )}
+      {chartData.length === 0 && !loading && (
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: theme.text3 }}>
+          <div style={{ fontSize: 36, marginBottom: 12 }}>📈</div>
+          <div style={{ fontSize: 13, color: theme.text2 }}>Add tickers to see charts</div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1572,7 +1595,6 @@ function tagFor(sym) {
 
 export default function Home() {
   const theme = THEMES.dark;
-  const isDesktop = useIsDesktop();
   const [authLoading, setAuthLoading] = useState(true);
   const [stack, setStack] = useState([{ screen: 'signin' }]);
   const [tab, setTab] = useState('home');
@@ -1709,8 +1731,8 @@ export default function Home() {
   if (authLoading) return <div style={{ background: theme.bg, minHeight: '100vh' }}/>;
 
   const onSignin = cur.screen === 'signin';
+  const isDashboard = cur.screen === 'dashboard';
 
-  // Desktop nav handler
   const desktopNav = (screen) => {
     replace(screen);
     if (screen === 'dashboard') setTab('home');
@@ -1718,7 +1740,6 @@ export default function Home() {
     else if (screen === 'settings') setTab('gear');
   };
 
-  // Body for non-dashboard screens (used in both mobile and desktop secondary panels)
   let body;
   if (cur.screen === 'signin') body = <SignIn theme={theme} onEnter={handleEnter}/>;
   else if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics}/>;
@@ -1729,78 +1750,140 @@ export default function Home() {
   else if (cur.screen === 'calculator') body = <CalculatorScreen theme={theme} holdings={holdings}/>;
   else body = <Dashboard theme={theme} navigate={navigate} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics}/>;
 
-  const fonts = (
-    <>
-      <link rel="preconnect" href="https://fonts.googleapis.com"/>
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>
-      <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-    </>
-  );
-
-  const globalStyles = `
-    :root { --font-ui: "Geist", system-ui, sans-serif; --font-mono: "Geist Mono", ui-monospace, monospace; }
-    html, body { margin: 0; padding: 0; background: ${theme.bg}; font-family: var(--font-ui); -webkit-font-smoothing: antialiased; }
-    * { box-sizing: border-box; }
-    @keyframes staxFade { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
-    button { font-family: inherit; }
-    input { font-family: inherit; }
-    select { font-family: inherit; }
-    ::-webkit-scrollbar { width: 0; }
-  `;
-
-  // ─── Desktop Layout ───────────────────────────────────────────
-  if (isDesktop && !onSignin) {
-    const isDashboard = cur.screen === 'dashboard';
-    return (
-      <>
-        <Head>
-          <title>DCA Tracker</title>
-          <meta name="description" content="Transparent DCA analytics — not advice"/>
-          <meta name="viewport" content="width=device-width, initial-scale=1"/>
-          {fonts}
-        </Head>
-        <style jsx global>{globalStyles}</style>
-
-        <div style={{ display: 'flex', minHeight: '100vh', background: theme.bg, color: theme.text, fontFamily: 'var(--font-ui)' }}>
-          <DesktopSidebar theme={theme} activeScreen={cur.screen} onNav={desktopNav} user={user}/>
-
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-            <DesktopHeader theme={theme} user={user} onAdd={() => navigate('add')}/>
-
-            <div style={{ flex: 1, display: isDashboard ? 'flex' : 'block', overflow: 'hidden', maxWidth: 1280, width: '100%', alignSelf: 'stretch' }}>
-              {isDashboard ? (
-                <DesktopDashboard theme={theme} holdings={holdings} loading={loading} navigate={navigate} onRefresh={fetchMetrics} fgIndex={fgIndex}/>
-              ) : (
-                <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 0 40px', overflowY: 'auto', height: '100%' }}>
-                  {body}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  // ─── Mobile Layout ────────────────────────────────────────────
   return (
     <>
       <Head>
         <title>DCA Tracker</title>
         <meta name="description" content="Transparent DCA analytics — not advice"/>
         <meta name="viewport" content="width=device-width, initial-scale=1"/>
-        {fonts}
+        <link rel="preconnect" href="https://fonts.googleapis.com"/>
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>
+        <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
       </Head>
-      <style jsx global>{globalStyles}</style>
 
-      <div style={{ width: '100%', minHeight: '100vh', background: theme.bg, color: theme.text, fontFamily: 'var(--font-ui)', position: 'relative' }}>
-        <div style={{ maxWidth: 430, margin: '0 auto', minHeight: '100vh', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', paddingTop: 8 }}>
-            {body}
-          </div>
+      <style jsx global>{`
+        :root { --font-ui: "Geist", system-ui, sans-serif; --font-mono: "Geist Mono", ui-monospace, monospace; }
+        html, body { margin: 0; padding: 0; background: ${theme.bg}; font-family: var(--font-ui); -webkit-font-smoothing: antialiased; height: 100%; }
+        * { box-sizing: border-box; }
+        @keyframes staxFade { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+        button { font-family: inherit; }
+        input { font-family: inherit; }
+        select { font-family: inherit; }
+        ::-webkit-scrollbar { width: 0; }
+
+        /* ── Responsive shell ── */
+        .dca-root { background: ${theme.bg}; color: ${theme.text}; min-height: 100vh; }
+
+        /* Mobile defaults */
+        .dca-sidebar   { display: none; }
+        .dca-dsk-hdr   { display: none; }
+        .dca-mob-nav   { display: block; }
+        .dca-mob-shell { max-width: 430px; margin: 0 auto; min-height: 100vh; position: relative; overflow: hidden; }
+        .dca-mob-inner { position: absolute; inset: 0; overflow-y: auto; padding-top: 8px; padding-bottom: 8px; }
+        .dca-dsk-only  { display: none; }
+        .dca-mob-only  { display: block; }
+
+        /* Desktop ≥ 768px */
+        @media (min-width: 768px) {
+          .dca-root       { display: flex; height: 100vh; overflow: hidden; }
+          .dca-sidebar    { display: flex; flex-direction: column; width: 220px; flex-shrink: 0;
+                            height: 100vh; overflow-y: auto; position: sticky; top: 0;
+                            background: #0B1020; border-right: 1px solid rgba(255,255,255,.08); }
+          .dca-main       { flex: 1; display: flex; flex-direction: column; min-width: 0; height: 100vh; overflow: hidden; }
+          .dca-dsk-hdr    { display: flex; flex-shrink: 0; }
+          .dca-mob-nav    { display: none !important; }
+          .dca-mob-shell  { max-width: none; margin: 0; min-height: 0; flex: 1; overflow: hidden; position: relative; }
+          .dca-mob-inner  { position: absolute; inset: 0; overflow-y: auto; padding-bottom: 0; }
+          .dca-dsk-only   { display: block; }
+          .dca-mob-only   { display: none; }
+
+          /* Signin: centered on desktop */
+          .dca-signin-wrap { display: flex; flex: 1; align-items: center; justify-content: center; }
+          .dca-signin-box  { width: 430px; max-height: 90vh; overflow-y: auto; }
+
+          /* Dashboard two-column */
+          .dca-dash-grid  { display: flex; flex: 1; overflow: hidden; height: 100%; }
+          .dca-dash-left  { flex: 0 0 60%; overflow-y: auto; border-right: 1px solid rgba(255,255,255,.06); padding: 24px 20px 40px 28px; }
+          .dca-dash-right { flex: 0 0 40%; overflow-y: auto; padding: 24px 28px 40px 20px; display: flex; flex-direction: column; gap: 16px; }
+
+          /* Secondary screens (calc, settings, etc.) centered */
+          .dca-panel      { height: 100%; overflow-y: auto; }
+          .dca-panel-inner { max-width: 680px; margin: 0 auto; }
+        }
+
+        @media (max-width: 767px) {
+          .dca-dash-grid { display: block; }
+          .dca-dash-left, .dca-dash-right { padding: 0; border: none; }
+          .dca-signin-wrap, .dca-signin-box { display: contents; }
+        }
+      `}</style>
+
+      <div className="dca-root">
+        {/* ── Sidebar (desktop only) ── */}
+        {!onSignin && (
+          <aside className="dca-sidebar">
+            <DesktopSidebar theme={theme} activeScreen={cur.screen} onNav={desktopNav} user={user}/>
+          </aside>
+        )}
+
+        {/* ── Main area ── */}
+        <div className={onSignin ? '' : 'dca-main'} style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+
+          {/* Desktop header (authenticated only) */}
           {!onSignin && (
-            <BottomNav theme={theme} tab={tab} setTab={setTab} onAdd={() => navigate('add')}/>
+            <div className="dca-dsk-hdr">
+              <DesktopHeader theme={theme} user={user} onAdd={() => navigate('add')}/>
+            </div>
           )}
+
+          {/* ── Content ── */}
+          {onSignin ? (
+            /* Sign-in: mobile card + desktop centered */
+            <div className="dca-signin-wrap" style={{ flex: 1 }}>
+              <div className="dca-signin-box">
+                <div style={{ height: '100vh' }}>
+                  {body}
+                </div>
+              </div>
+            </div>
+          ) : isDashboard ? (
+            /* Dashboard: two-column grid on desktop, single column on mobile */
+            <div className="dca-dash-grid">
+              {/* Left: holdings table */}
+              <div className="dca-dash-left">
+                <div className="dca-mob-only">
+                  {/* Mobile: render full Dashboard (has notif bar, etc.) */}
+                  {body}
+                </div>
+                <div className="dca-dsk-only">
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: theme.text3, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Holdings — sorted by score</div>
+                    <HoldingsTable theme={theme} holdings={holdings} loading={loading} onPick={sym => navigate('detail', sym)} onRefresh={fetchMetrics}/>
+                  </div>
+                </div>
+              </div>
+              {/* Right: charts (desktop only) */}
+              <div className="dca-dash-right dca-dsk-only">
+                <DesktopDashboardRight theme={theme} holdings={holdings} loading={loading} navigate={navigate} fgIndex={fgIndex}/>
+              </div>
+            </div>
+          ) : (
+            /* All other screens */
+            <div className="dca-mob-shell">
+              <div className="dca-mob-inner">
+                <div className="dca-panel">
+                  <div className="dca-panel-inner">
+                    {body}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile bottom nav */}
+          <div className="dca-mob-nav">
+            <BottomNav theme={theme} tab={tab} setTab={setTab} onAdd={() => navigate('add')}/>
+          </div>
         </div>
       </div>
     </>
