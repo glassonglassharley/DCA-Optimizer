@@ -121,6 +121,14 @@ const TERMS = [
     visual: null,
   },
   {
+    key: 'va',
+    term: 'Value Averaging',
+    cat: 'Concept',
+    def: 'Value Averaging (VA) is an investment strategy developed by Harvard professor Michael Edleson in 1991. Unlike DCA — which invests a fixed dollar amount each period — VA invests a variable amount to keep your portfolio growing along a predetermined target path. If your portfolio grew less than the target, you invest more. If it grew more, you invest less (or sell). The goal is to accumulate more shares at lower prices and fewer at higher prices — automatically and mathematically, not by guessing.\n\nExample: you target $500/month in portfolio growth. If the market dropped and your portfolio only gained $200 this month, you invest $300. If it surged and gained $800, you invest nothing. If it fell and lost $200, you invest $700 to hit the target.',
+    inApp: 'DCA Tracker is built around standard DCA — fixed amounts on a schedule. Value Averaging is more aggressive in bear markets (you invest more when prices fall) and more conservative in bull runs (you invest less when prices rise). The 200MA Distance column is a natural VA companion: a deeply negative reading (price well below its long-term baseline) is exactly when VA would have you deploy the most capital. Treat a score of 8–10 as a VA "top up" signal and a score below 4 as a VA "coast" signal.',
+    visual: null,
+  },
+  {
     key: 'reversion',
     term: 'Mean Reversion',
     cat: 'Concept',
