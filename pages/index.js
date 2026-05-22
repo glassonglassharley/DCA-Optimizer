@@ -908,9 +908,8 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
         Educational market data only. Analyst ratings sourced from Yahoo Finance. Not financial advice.
       </div>
 
-      <div style={{ padding: '0 16px', display: 'flex', gap: 10 }}>
-        <button style={{ flex: 1, height: 46, borderRadius: 12, border: 'none', cursor: 'pointer', background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`, color: '#fff', fontWeight: 700, fontSize: 13, boxShadow: `0 8px 20px ${theme.brand}55` }}>Log a Buy</button>
-        <button style={{ flex: 1, height: 46, borderRadius: 12, cursor: 'pointer', border: `1px solid ${theme.line2}`, background: theme.pillBg, color: theme.text, fontWeight: 600, fontSize: 13 }}>Set Alert</button>
+      <div style={{ padding: '0 16px' }}>
+        <button style={{ width: '100%', height: 46, borderRadius: 12, cursor: 'pointer', border: `1px solid ${theme.line2}`, background: theme.pillBg, color: theme.text, fontWeight: 600, fontSize: 13 }}>Set Alert</button>
       </div>
       <div style={{ height: 80 }}/>
     </div>
