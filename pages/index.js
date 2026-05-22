@@ -1635,10 +1635,12 @@ function DesktopSidebar({ theme, activeScreen, onNav, user }) {
   );
 }
 
-function DesktopHeader({ theme, user, onAdd }) {
+function DesktopHeader({ theme, user, onAdd, fgIndex }) {
+  const fgC = fgIndex != null ? fgColor(fgIndex) : theme.text3;
+  const fgLbl = fgIndex != null ? fgLabel(fgIndex) : null;
   return (
     <div style={{
-      padding: '16px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '12px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       borderBottom: `1px solid rgba(255,255,255,.06)`, background: '#0B1020',
       position: 'sticky', top: 0, zIndex: 10,
     }}>
@@ -1646,6 +1648,13 @@ function DesktopHeader({ theme, user, onAdd }) {
         <div style={{ fontSize: 16, fontWeight: 700, color: theme.text, letterSpacing: '-.01em' }}>Dashboard</div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {fgIndex != null && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 8, background: fgC + '18', border: `1px solid ${fgC}40` }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: fgC, fontFamily: 'var(--font-mono)' }}>{fgIndex}</span>
+            <span style={{ fontSize: 10, color: fgC, fontWeight: 600 }}>F&amp;G</span>
+            {fgLbl && <span style={{ fontSize: 10, color: theme.text3 }}>· {fgLbl}</span>}
+          </div>
+        )}
         {user && <div style={{ fontSize: 12, color: theme.text3, fontFamily: 'var(--font-mono)', background: theme.bg2, padding: '4px 10px', borderRadius: 7, border: `1px solid ${theme.line}` }}>@{user}</div>}
         <button onClick={onAdd} style={{
           height: 34, padding: '0 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
@@ -2023,7 +2032,7 @@ export default function Home() {
           {/* Desktop header (authenticated only) */}
           {!onSignin && (
             <div className="dca-dsk-hdr">
-              <DesktopHeader theme={theme} user={user} onAdd={() => navigate('add')}/>
+              <DesktopHeader theme={theme} user={user} onAdd={() => navigate('add')} fgIndex={fgIndex}/>
             </div>
           )}
 
@@ -2047,7 +2056,8 @@ export default function Home() {
                   {body}
                 </div>
                 <div className="dca-dsk-only">
-                  <div style={{ marginBottom: 16 }}>
+                  <NotifBar theme={theme} holdings={holdings}/>
+                  <div style={{ marginTop: 16, marginBottom: 16 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: theme.text3, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Holdings — sorted by score</div>
                     <HoldingsTable theme={theme} holdings={holdings} loading={loading} onPick={sym => navigate('detail', sym)} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed}/>
                   </div>
