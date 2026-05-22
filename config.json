@@ -1,0 +1,6 @@
+{
+  "telegramBotToken": "YOUR_BOT_TOKEN",
+  "telegramChatId": "8124037036",
+  "apiSecret": "harley-dca-2026",
+  "coingeckoApiKey": "YOUR_CG_API_KEY"
+}

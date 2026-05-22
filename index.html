@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>DCA Portfolio Optimizer</title>
+    <meta name="theme-color" content="#0f0f1a">
+    <meta name="description" content="Build a DCA watchlist and get periodic buy suggestions">
+    
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="DCA Tracker">
+    
+    <!-- iOS Home Screen Icon -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%230f0f1a'/><text x='90' y='120' font-size='100' text-anchor='middle' fill='%2300d4ff'>📊</text></svg>">
+    <link rel="apple-touch-icon" sizes="180x180" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%230f0f1a'/><text x='90' y='120' font-size='100' text-anchor='middle' fill='%2300d4ff'>📊</text></svg>">
+    
+    <!-- iOS Splash Screens -->
+    <link rel="apple-touch-startup-image" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 390 844'><rect width='390' height='844' fill='%230f0f1a'/><text x='195' y='400' font-size='60' text-anchor='middle' fill='%2300d4ff'>📊</text><text x='195' y='480' font-size='24' text-anchor='middle' fill='%23666'>DCA Tracker</text></svg>">
+    
+    <!-- Safe Area for iOS -->
+    <style>
+        body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+    </style>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(180deg, #0f0f1a 0%, #1a1a2e 100%); color: #e8e8e8; min-height: 100vh; padding: 15px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        header { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid rgba(0, 212, 255, 0.15); margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
+        header h1 { font-size: 1.5rem; background: linear-gradient(135deg, #00d4ff, #7b2cbf); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .user-menu { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .username { color: #888; font-size: 0.9rem; }
+        .btn { padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; }
+        .btn-primary { background: linear-gradient(135deg, #00d4ff, #7b2cbf); color: #fff; }
+        .btn-primary:hover { transform: translateY(-1px); }
+        .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); }
+        .btn-secondary:hover { background: rgba(255,255,255,0.15); }
+        .btn-small { padding: 8px 14px; font-size: 0.8rem; }
+        
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; }
+        
+        .chat-btn { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #00d4ff, #7b2cbf); border: none; color: #fff; font-size: 1.5rem; cursor: pointer; box-shadow: 0 4px 20px rgba(0, 212, 255, 0.4); z-index: 100; transition: transform 0.2s; }
+        .chat-btn:hover { transform: scale(1.1); }
+        
+        .chat-modal { position: fixed; bottom: 90px; right: 20px; width: 380px; max-width: calc(100vw - 40px); background: #1a1a2e; border: 1px solid rgba(0, 212, 255, 0.3); border-radius: 16px; display: none; flex-direction: column; z-index: 99; box-shadow: 0 10px 40px rgba(0,0,0,0.5); max-height: 500px; }
+        .chat-modal.active { display: flex; }
+        .chat-header { padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; }
+        .chat-header h3 { font-size: 1rem; color: #00d4ff; }
+        .chat-close { background: none; border: none; color: #888; font-size: 1.5rem; cursor: pointer; }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; min-height: 200px; max-height: 300px; }
+        .chat-msg { padding: 10px 14px; border-radius: 12px; font-size: 0.9rem; line-height: 1.4; max-width: 85%; }
+        .chat-msg.user { background: linear-gradient(135deg, #00d4ff, #7b2cbf); align-self: flex-end; }
+        .chat-msg.assistant { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); align-self: flex-start; }
+        .chat-input-area { padding: 15px; border-top: 1px solid rgba(255,255,255,0.1); display: flex; gap: 10px; }
+        .chat-input-area input { flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(0, 212, 255, 0.2); color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem; }
+        .chat-input-area button { background: linear-gradient(135deg, #00d4ff, #7b2cbf); border: none; color: #fff; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        
+        .top-pick { background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(123, 44, 191, 0.1)); border: 1px solid rgba(0, 212, 255, 0.3); padding: 20px; border-radius: 12px; margin-bottom: 15px; }
+        .top-pick h3 { color: #00d4ff; font-size: 0.9rem; margin-bottom: 8px; }
+        .top-pick .pick { font-size: 1.5rem; font-weight: 700; }
+        .top-pick .reason { color: #888; font-size: 0.9rem; margin-top: 5px; }
+        .top-pick .why-box { background: rgba(0, 255, 100, 0.08); border: 1px solid rgba(0, 255, 100, 0.2); border-radius: 8px; padding: 12px; margin-top: 12px; }
+        .top-pick .why-box h4 { color: #00ff64; font-size: 0.8rem; margin-bottom: 5px; }
+        .top-pick .why-box p { color: #aaa; font-size: 0.85rem; line-height: 1.4; }
+        
+        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 15px 0; }
+        @media (max-width: 700px) { .charts-grid { grid-template-columns: 1fr; } }
+        .chart-box { background: rgba(255,255,255,0.02); padding: 15px; border-radius: 12px; border: 1px solid rgba(0, 212, 255, 0.1); }
+        .chart-box h3 { color: #00d4ff; margin-bottom: 10px; font-size: 0.95rem; }
+        
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; background: rgba(255,255,255,0.01); border-radius: 12px; overflow: hidden; border: 1px solid rgba(0, 212, 255, 0.1); }
+        th, td { padding: 10px 12px; text-align: left; }
+        th { background: linear-gradient(90deg, rgba(123, 44, 191, 0.2), rgba(0, 212, 255, 0.15)); color: #00d4ff; font-weight: 600; text-transform: uppercase; font-size: 0.7rem; }
+        tr { border-bottom: 1px solid rgba(255,255,255,0.03); }
+        tr:hover { background: rgba(0, 212, 255, 0.05); }
+        .asset-cell { display: flex; align-items: center; gap: 10px; }
+        .asset-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1rem; background: linear-gradient(135deg, #00d4ff, #7b2cbf); }
+        .asset-name { font-size: 0.75rem; color: #666; }
+        .score-bar { height: 18px; background: rgba(255,255,255,0.05); border-radius: 9px; overflow: hidden; min-width: 60px; }
+        .score-fill { height: 100%; border-radius: 9px; }
+        
+        .fg-badge { display: inline-block; padding: 3px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; }
+        .extreme-fear { background: rgba(0, 255, 100, 0.2); color: #00ff64; }
+        .fear { background: rgba(100, 255, 100, 0.15); color: #64ff64; }
+        .neutral-fg { background: rgba(255, 170, 0, 0.2); color: #ffaa00; }
+        .greed { background: rgba(255, 150, 100, 0.2); color: #ff9664; }
+        .extreme-greed { background: rgba(255, 68, 68, 0.2); color: #ff4444; }
+        
+        .rating-badge { display: inline-block; padding: 3px 8px; border-radius: 5px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; }
+        .rating-buy { background: rgba(0, 255, 100, 0.2); border: 1px solid #00ff64; color: #00ff64; }
+        .rating-hold { background: rgba(255, 170, 0, 0.2); border: 1px solid #ffaa00; color: #ffaa00; }
+        .rating-sell { background: rgba(255, 68, 68, 0.2); border: 1px solid #ff4444; color: #ff4444; }
+        
+        .tag-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 600; text-transform: uppercase; }
+        .tag-core { background: rgba(0, 255, 100, 0.15); color: #00ff64; }
+        .tag-growth { background: rgba(0, 212, 255, 0.15); color: #00d4ff; }
+        .tag-speculative { background: rgba(255, 107, 107, 0.15); color: #ff6b6b; }
+        
+        .positive { color: #00ff64 !important; }
+        .negative { color: #ff4444 !important; }
+        
+        /* Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 15px; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: #1a1a2e; border: 1px solid rgba(0, 212, 255, 0.3); border-radius: 16px; padding: 25px; width: 100%; max-width: 400px; max-height: 90vh; overflow-y: auto; }
+        .modal h2 { font-size: 1.3rem; margin-bottom: 5px; }
+        .modal .subtitle { color: #888; font-size: 0.9rem; margin-bottom: 20px; }
+        .modal input { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(0, 212, 255, 0.2); color: #fff; padding: 12px 15px; border-radius: 8px; font-size: 1rem; margin-bottom: 12px; }
+        .modal input:focus { outline: none; border-color: #00d4ff; }
+        .modal .error { color: #ff4444; font-size: 0.85rem; margin-bottom: 10px; }
+        .modal .note { color: #666; font-size: 0.8rem; margin-top: 15px; text-align: center; }
+        .modal .warning { background: rgba(255, 170, 0, 0.1); border: 1px solid rgba(255, 170, 0, 0.3); border-radius: 8px; padding: 10px; margin-top: 15px; font-size: 0.75rem; color: #ffaa00; }
+        .divider { display: flex; align-items: center; margin: 15px 0; color: #444; font-size: 0.85rem; }
+        .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.1); }
+        .divider::before { margin-right: 15px; }
+        .divider::after { margin-left: 15px; }
+        
+        /* Add Ticker Modal */
+        .search-box { position: relative; }
+        .search-results { position: absolute; top: 100%; left: 0; right: 0; background: #1a1a2e; border: 1px solid rgba(0, 212, 255, 0.3); border-radius: 8px; max-height: 200px; overflow-y: auto; z-index: 10; display: none; }
+        .search-results.active { display: block; }
+        .search-result { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .search-result:hover { background: rgba(0, 212, 255, 0.1); }
+        .search-result .symbol { font-weight: 700; color: #00d4ff; }
+        .search-result .name { font-size: 0.85rem; color: #888; margin-left: 10px; }
+        
+        .ticker-setup { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); }
+        .ticker-setup h4 { margin-bottom: 12px; }
+        .setup-row { margin-bottom: 12px; }
+        .setup-row label { display: block; font-size: 0.85rem; color: #888; margin-bottom: 6px; }
+        .tag-buttons { display: flex; gap: 8px; }
+        .tag-btn { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #888; cursor: pointer; font-size: 0.8rem; }
+        .tag-btn.active { border-color: #00d4ff; color: #00d4ff; background: rgba(0, 212, 255, 0.1); }
+        .tag-btn.core.active { border-color: #00ff64; color: #00ff64; }
+        .tag-btn.speculative.active { border-color: #ff6b6b; color: #ff6b6b; }
+        .toggle-row { display: flex; align-items: center; justify-content: space-between; }
+        .toggle { width: 50px; height: 26px; background: rgba(255,255,255,0.1); border-radius: 13px; cursor: pointer; position: relative; }
+        .toggle.on { background: #00ff64; }
+        .toggle::after { content: ''; position: absolute; width: 22px; height: 22px; background: #fff; border-radius: 50%; top: 2px; left: 2px; transition: all 0.2s; }
+        .toggle.on::after { left: 26px; }
+        
+        .empty-table { text-align: center; padding: 40px 20px; color: #666; }
+        .empty-table p { margin-bottom: 15px; }
+        
+        footer { text-align: center; padding: 20px 0; margin-top: 30px; border-top: 1px solid rgba(0, 212, 255, 0.1); color: #555; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 DCA Optimizer</h1>
+            <div class="user-menu">
+                <span class="username" id="display-username">Guest</span>
+                <button class="btn btn-secondary btn-small" id="auth-btn" onclick="openAuthModal()">Sign In</button>
+                <button class="btn btn-primary btn-small" onclick="openAddModal()">➕ Add Ticker</button>
+            </div>
+        </header>
+        
+        <div class="controls">
+            <button class="btn btn-secondary btn-small" onclick="refresh()">🔄 Refresh</button>
+        </div>
+        
+        <div class="top-pick" id="top-pick">
+            <h3>🏆 Top Pick</h3>
+            <div class="pick">Add tickers to get started</div>
+            <div class="reason">Click "Add Ticker" to build your DCA universe</div>
+        </div>
+        
+        <div class="charts-grid">
+            <div class="chart-box"><h3>📈 Scores</h3><canvas id="scoreChart"></canvas></div>
+            <div class="chart-box"><h3>📊 RSI</h3><canvas id="rsiChart"></canvas></div>
+        </div>
+        
+        <table>
+            <thead><tr><th>Asset</th><th>Tag</th><th>Rating</th><th>Score</th><th>RSI*</th><th>F&G</th><th>Price</th></tr></thead>
+            <tbody id="table-body">
+                <tr><td colspan="7" class="empty-table">
+                    <p>No tickers in your universe yet</p>
+                    <button class="btn btn-primary" onclick="openAddModal()">➕ Add Your First Ticker</button>
+                </td></tr>
+            </tbody>
+        </table>
+        
+        <footer>
+            <p style="font-size:0.75rem;color:#666;margin-bottom:10px;">*RSI (Relative Strength Index): 0-30 = Oversold (buy signal) | 30-70 = Neutral | 70-100 = Overbought (caution)</p>
+            <p>Built by Harley 🐾</p>
+        </footer>
+    </div>
+    
+    <!-- Chat Button -->
+    <button class="chat-btn" onclick="toggleChat()">💬</button>
+    
+    <!-- Chat Modal -->
+    <div class="chat-modal" id="chat-modal">
+        <div class="chat-header">
+            <h3>🤖 Financial Assistant</h3>
+            <button class="chat-close" onclick="toggleChat()">×</button>
+        </div>
+        <div class="chat-messages" id="chat-messages">
+            <div class="chat-msg assistant">Hi! I can help with DCA strategies, RSI analysis, portfolio questions, and general investing concepts. What would you like to know?</div>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="chat-input" placeholder="Ask about investing..." onkeypress="if(event.key==='Enter')sendChat()">
+            <button onclick="sendChat()">Send</button>
+        </div>
+    </div>
+    
+    <!-- Auth Modal -->
+    <div class="modal-overlay" id="auth-modal">
+        <div class="modal">
+            <h2>Sign In</h2>
+            <p class="subtitle">Save your tickers across devices</p>
+            <input type="text" id="auth-username" placeholder="Username">
+            <input type="password" id="auth-password" placeholder="Password">
+            <div class="error" id="auth-error"></div>
+            <button class="btn btn-primary" onclick="handleAuth()" style="width:100%">Continue</button>
+            <p class="note">New users create account automatically</p>
+            <div class="warning">⚠️ If you lose your password, we cannot recover your account (no email collected)</div>
+            <div class="divider">or</div>
+            <button class="btn btn-secondary" onclick="closeAuthModal()" style="width:100%">Continue as Guest</button>
+            <p class="note">Guest data is stored locally and may be lost</p>
+        </div>
+    </div>
+    
+    <!-- Add Ticker Modal -->
+    <div class="modal-overlay" id="add-modal">
+        <div class="modal">
+            <h2>Add Ticker</h2>
+            <p class="subtitle">Search for a stock or ETF</p>
+            <div class="search-box">
+                <input type="text" id="ticker-search" placeholder="Search (AAPL, VOO, BTC...)" oninput="searchTicker(this.value)">
+                <div class="search-results" id="search-results"></div>
+            </div>
+            <div class="ticker-setup hidden" id="ticker-setup">
+                <h4 id="setup-symbol">AAPL</h4>
+                <div class="setup-row">
+                    <label>Category:</label>
+                    <div class="tag-buttons">
+                        <button class="tag-btn core" onclick="selectTag('core')">Core</button>
+                        <button class="tag-btn growth active" onclick="selectTag('growth')">Growth</button>
+                        <button class="tag-btn speculative" onclick="selectTag('speculative')">Spec</button>
+                    </div>
+                </div>
+                <div class="setup-row toggle-row">
+                    <label>Include in DCA suggestions</label>
+                    <div class="toggle on" id="dca-toggle" onclick="toggleDCA()"></div>
+                </div>
+                <button class="btn btn-primary" onclick="confirmTicker()" style="width:100%;margin-top:10px">Add to Universe</button>
+            </div>
+            <button class="btn btn-secondary" onclick="closeAddModal()" style="width:100%;margin-top:15px">Cancel</button>
+        </div>
+    </div>
+    
+    <script>
+        // State
+        let currentUser = null;
+        let userTickers = [];
+        let pendingTicker = null;
+        let scoreChart = null;
+        let rsiChart = null;
+        let allResults = [];
+        
+        // Ticker database (for display names - any ticker can be added)
+        const TICKER_DB = {
+            // ETFs
+            'VOO': {name: 'Vanguard S&P 500 ETF', icon: '📈'},
+            'VTI': {name: 'Vanguard Total Stock Market', icon: '📈'},
+            'SPY': {name: 'SPDR S&P 500 ETF', icon: '📈'},
+            'QQQ': {name: 'Invesco Nasdaq 100 ETF', icon: '💻'},
+            'IWM': {name: 'iShares Russell 2000 ETF', icon: '📊'},
+            'DIA': {name: 'SPDR Dow Jones Industrial Avg', icon: '📊'},
+            'GLD': {name: 'SPDR Gold Shares', icon: '🥇'},
+            'SLV': {name: 'iShares Silver Trust', icon: '🥈'},
+            'IBIT': {name: 'iShares Bitcoin Trust', icon: '₿'},
+            'XLV': {name: 'Health Care Select SPDR', icon: '🏥'},
+            'XLF': {name: 'Financial Select SPDR', icon: '🏦'},
+            'XLE': {name: 'Energy Select SPDR', icon: '⛽'},
+            'XLY': {name: 'Consumer Discretionary SPDR', icon: '🛍️'},
+            'XLP': {name: 'Consumer Staples SPDR', icon: '🛒'},
+            'VNQ': {name: 'Vanguard Real Estate ETF', icon: '🏠'},
+            'BND': {name: 'Vanguard Total Bond ETF', icon: '📜'},
+            // Crypto
+            'BTC-USD': {name: 'Bitcoin USD', icon: '₿'},
+            'ETH-USD': {name: 'Ethereum USD', icon: 'Ξ'},
+            'SOL-USD': {name: 'Solana USD', icon: '◎'},
+            // Tech
+            'AAPL': {name: 'Apple Inc', icon: '🍎'},
+            'MSFT': {name: 'Microsoft Corp', icon: '💻'},
+            'GOOGL': {name: 'Alphabet Inc', icon: '🔍'},
+            'GOOG': {name: 'Alphabet Inc Class C', icon: '🔍'},
+            'AMZN': {name: 'Amazon.com Inc', icon: '📦'},
+            'NVDA': {name: 'NVIDIA Corp', icon: '🎮'},
+            'TSLA': {name: 'Tesla Inc', icon: '🚗'},
+            'META': {name: 'Meta Platforms', icon: '👤'},
+            'AMD': {name: 'Advanced Micro Devices', icon: '⚡'},
+            'INTC': {name: 'Intel Corp', icon: '🔌'},
+            'NFLX': {name: 'Netflix Inc', icon: '🎬'},
+            // Finance
+            'JPM': {name: 'JPMorgan Chase', icon: '🏦'},
+            'BAC': {name: 'Bank of America', icon: '🏦'},
+            'WFC': {name: 'Wells Fargo', icon: '🏦'},
+            'GS': {name: 'Goldman Sachs', icon: '🏦'},
+            'V': {name: 'Visa Inc', icon: '💳'},
+            'MA': {name: 'Mastercard Inc', icon: '💳'},
+            'AXP': {name: 'American Express', icon: '💳'},
+            'BLK': {name: 'BlackRock Inc', icon: '🏦'},
+            // Healthcare
+            'JNJ': {name: 'Johnson & Johnson', icon: '💊'},
+            'UNH': {name: 'UnitedHealth Group', icon: '🏥'},
+            'PFE': {name: 'Pfizer Inc', icon: '💊'},
+            'ABBV': {name: 'AbbVie Inc', icon: '💊'},
+            'MRK': {name: 'Merck & Co', icon: '💊'},
+            'LLY': {name: 'Eli Lilly & Co', icon: '💊'},
+            
+            // Services
+            'WM': {name: 'Waste Management Inc', icon: '🗑️'},
+            'COST': {name: 'Costco Wholesale', icon: '🛒'},
+            'WMT': {name: 'Walmart Inc', icon: '🏪'},
+            'TGT': {name: 'Target Corp', icon: '🎯'},
+            'HD': {name: 'Home Depot Inc', icon: '🏠'},
+            'LOW': {name: "Lowe's Companies", icon: '🔨'},
+            'UPS': {name: 'United Parcel Service', icon: '📦'},
+            'FDX': {name: 'FedEx Corp', icon: '✈️'},
+            
+            // Consumer
+            'KO': {name: 'Coca-Cola Co', icon: '🥤'},
+            'PEP': {name: 'PepsiCo Inc', icon: '🥤'},
+            'MCD': {name: "McDonald's Corp", icon: '🍔'},
+            'SBUX': {name: 'Starbucks Corp', icon: '☕'},
+            'NKE': {name: 'Nike Inc', icon: '👟'},
+            'DIS': {name: 'Walt Disney Co', icon: '🏰'},
+            
+            // Industrial
+            'CAT': {name: 'Caterpillar Inc', icon: '🚜'},
+            'BA': {name: 'Boeing Co', icon: '✈️'},
+            'HON': {name: 'Honeywell Intl', icon: '⚙️'},
+            'GE': {name: 'General Electric', icon: '💡'},
+            
+            // Energy
+            'XOM': {name: 'Exxon Mobil Corp', icon: '⛽'},
+            'CVX': {name: 'Chevron Corp', icon: '⛽'},
+            'COP': {name: 'ConocoPhillips', icon: '⛽'},
+            
+            // Utilities
+            'NEE': {name: 'NextEra Energy', icon: '⚡'},
+            'DUK': {name: 'Duke Energy Corp', icon: '⚡'},
+            
+            // Real Estate
+            'PLD': {name: 'Prologis Inc', icon: '🏢'},
+            'AMT': {name: 'American Tower Corp', icon: '📡'},
+            // Retail
+            'COST': {name: 'Costco Wholesale', icon: '🛒'},
+            'WMT': {name: 'Walmart Inc', icon: '🏪'},
+            'TGT': {name: 'Target Corp', icon: '🎯'},
+            'HD': {name: 'Home Depot', icon: '🏠'},
+            'LOW': {name: "Lowe's Companies", icon: '🏠'},
+            // Industrial
+            'WM': {name: 'Waste Management Inc', icon: '♻️'},
+            'CAT': {name: 'Caterpillar Inc', icon: '🚜'},
+            'BA': {name: 'Boeing Co', icon: '✈️'},
+            'HON': {name: 'Honeywell Intl', icon: '⚙️'},
+            'UPS': {name: 'United Parcel Service', icon: '📦'},
+            'FDX': {name: 'FedEx Corp', icon: '📦'},
+            'GE': {name: 'General Electric', icon: '⚡'},
+            'MMM': {name: '3M Company', icon: '🔧'},
+            // Energy
+            'XOM': {name: 'Exxon Mobil Corp', icon: '⛽'},
+            'CVX': {name: 'Chevron Corp', icon: '⛽'},
+            'COP': {name: 'ConocoPhillips', icon: '⛽'},
+            // Consumer
+            'KO': {name: 'Coca-Cola Co', icon: '🥤'},
+            'PEP': {name: 'PepsiCo Inc', icon: '🥤'},
+            'MCD': {name: "McDonald's Corp", icon: '🍔'},
+            'SBUX': {name: 'Starbucks Corp', icon: '☕'},
+            'NKE': {name: 'Nike Inc', icon: '👟'},
+            'DIS': {name: 'Walt Disney Co', icon: '🏰'},
+            // Dividend
+            'O': {name: 'Realty Income Corp', icon: '🏠'},
+            'MAIN': {name: 'Main Street Capital', icon: '💰'},
+            'JEPI': {name: 'JPMorgan Equity Premium Income', icon: '💰'},
+            'SCHD': {name: 'Schwab US Dividend Equity', icon: '💰'},
+        };
+        
+        // Initialize
+        async function init() {
+            const savedUser = localStorage.getItem('dca_current_user');
+            if (savedUser) {
+                currentUser = savedUser;
+                const users = JSON.parse(localStorage.getItem('dca_users') || '{}');
+                if (users[savedUser]) {
+                    userTickers = users[savedUser].tickers || [];
+                    // Try to sync from cloud
+                    await syncFromCloud(savedUser);
+                } else {
+                    const guestData = JSON.parse(localStorage.getItem('dca_guest_data') || '{}');
+                    userTickers = guestData.tickers || [];
+                }
+                updateUI();
+            }
+            
+            if (userTickers.length > 0) {
+                fetchData();
+            }
+        }
+        
+        function updateUI() {
+            const display = currentUser && !currentUser.startsWith('guest_') ? currentUser : 'Guest';
+            document.getElementById('display-username').textContent = display;
+            
+            if (currentUser && !currentUser.startsWith('guest_')) {
+                document.getElementById('auth-btn').textContent = 'Logout';
+                document.getElementById('auth-btn').onclick = logout;
+            } else {
+                document.getElementById('auth-btn').textContent = 'Sign In';
+                document.getElementById('auth-btn').onclick = openAuthModal;
+            }
+        }
+        
+        // Auth
+        function openAuthModal() {
+            document.getElementById('auth-modal').classList.add('active');
+            document.getElementById('auth-username').value = '';
+            document.getElementById('auth-password').value = '';
+            document.getElementById('auth-error').textContent = '';
+        }
+        
+        function closeAuthModal() {
+            document.getElementById('auth-modal').classList.remove('active');
+        }
+        
+        async function handleAuth() {
+            const username = document.getElementById('auth-username').value.trim();
+            const password = document.getElementById('auth-password').value;
+            
+            if (!username || username.length < 3) {
+                document.getElementById('auth-error').textContent = 'Username must be at least 3 characters';
+                return;
+            }
+            if (!password || password.length < 4) {
+                document.getElementById('auth-error').textContent = 'Password must be at least 4 characters';
+                return;
+            }
+            
+            const users = JSON.parse(localStorage.getItem('dca_users') || '{}');
+            
+            if (users[username]) {
+                if (users[username].password !== password) {
+                    document.getElementById('auth-error').textContent = 'Incorrect password';
+                    return;
+                }
+                currentUser = username;
+                userTickers = users[username].tickers || [];
+                
+                // Try to sync from cloud (may have newer data from other device)
+                const synced = await syncFromCloud(username);
+                if (synced) {
+                    console.log('Synced from cloud');
+                }
+            } else {
+                users[username] = { password, tickers: [] };
+                localStorage.setItem('dca_users', JSON.stringify(users));
+                currentUser = username;
+                userTickers = [];
+            }
+            
+            localStorage.setItem('dca_current_user', username);
+            closeAuthModal();
+            updateUI();
+            
+            if (userTickers.length > 0) {
+                fetchData();
+            }
+        }
+        
+        function logout() {
+            localStorage.removeItem('dca_current_user');
+            currentUser = null;
+            userTickers = [];
+            location.reload();
+        }
+        
+        // Add Ticker Modal
+        function openAddModal() {
+            document.getElementById('add-modal').classList.add('active');
+            document.getElementById('ticker-search').value = '';
+            document.getElementById('ticker-setup').classList.add('hidden');
+            document.getElementById('search-results').classList.remove('active');
+        }
+        
+        function closeAddModal() {
+            document.getElementById('add-modal').classList.remove('active');
+            pendingTicker = null;
+        }
+        
+        function searchTicker(query) {
+            const results = document.getElementById('search-results');
+            if (!query || query.length < 1) {
+                results.classList.remove('active');
+                return;
+            }
+            
+            const q = query.toUpperCase();
+            const matches = Object.entries(TICKER_DB)
+                .filter(([sym, data]) => 
+                    sym.includes(q) || 
+                    data.name.toUpperCase().includes(q)
+                )
+                .slice(0, 5);
+            
+            let html = '';
+            
+            // Always show option to add custom ticker
+            if (!userTickers.find(t => t.symbol === q)) {
+                html += '<div class="search-result" onclick="selectTicker(\'' + q + '\')"><span class="symbol">' + q + '</span><span class="name">Add custom ticker</span></div>';
+            }
+            
+            // Show matching known tickers
+            matches.forEach(([sym, data]) => {
+                if (!userTickers.find(t => t.symbol === sym)) {
+                    html += '<div class="search-result" onclick="selectTicker(\'' + sym + '\')"><span class="symbol">' + sym + '</span><span class="name">' + data.name + '</span></div>';
+                }
+            });
+            
+            results.innerHTML = html;
+            results.classList.add('active');
+        }
+        
+        function selectTicker(symbol) {
+            document.getElementById('search-results').classList.remove('active');
+            document.getElementById('ticker-search').value = '';
+            
+            if (userTickers.find(t => t.symbol === symbol)) {
+                alert(symbol + ' is already in your universe');
+                return;
+            }
+            
+            pendingTicker = { symbol, tag: 'growth', dca: true };
+            document.getElementById('setup-symbol').textContent = symbol;
+            document.getElementById('ticker-setup').classList.remove('hidden');
+            
+            document.querySelectorAll('.tag-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector('.tag-btn.growth').classList.add('active');
+            document.getElementById('dca-toggle').classList.add('on');
+        }
+        
+        function selectTag(tag) {
+            document.querySelectorAll('.tag-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            if (pendingTicker) pendingTicker.tag = tag;
+        }
+        
+        function toggleDCA() {
+            const toggle = document.getElementById('dca-toggle');
+            toggle.classList.toggle('on');
+            if (pendingTicker) pendingTicker.dca = toggle.classList.contains('on');
+        }
+        
+        function confirmTicker() {
+            if (!pendingTicker) return;
+            
+            userTickers.push({...pendingTicker});
+            saveData();
+            closeAddModal();
+            fetchData();
+        }
+        
+        function removeTicker(symbol) {
+            userTickers = userTickers.filter(t => t.symbol !== symbol);
+            saveData();
+            fetchData();
+        }
+        
+        function saveData() {
+            // Save locally
+            if (currentUser && !currentUser.startsWith('guest_')) {
+                const users = JSON.parse(localStorage.getItem('dca_users') || '{}');
+                if (users[currentUser]) {
+                    users[currentUser].tickers = userTickers;
+                    localStorage.setItem('dca_users', JSON.stringify(users));
+                }
+                // Sync to cloud
+                syncToCloud(currentUser, userTickers);
+            } else {
+                localStorage.setItem('dca_guest_data', JSON.stringify({ tickers: userTickers }));
+            }
+        }
+        
+        async function syncToCloud(username, tickers) {
+            try {
+                await fetch('/api/sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, tickers })
+                });
+            } catch(e) {
+                console.log('Sync failed, using local data');
+            }
+        }
+        
+        async function syncFromCloud(username) {
+            try {
+                const res = await fetch('/api/sync?username=' + encodeURIComponent(username));
+                const data = await res.json();
+                
+                // Get local tickers
+                const localTickers = userTickers || [];
+                const cloudTickers = data.tickers || [];
+                
+                // Merge: combine local + cloud, remove duplicates by symbol
+                const allSymbols = new Map();
+                [...localTickers, ...cloudTickers].forEach(t => {
+                    if (!allSymbols.has(t.symbol)) {
+                        allSymbols.set(t.symbol, t);
+                    }
+                });
+                
+                const mergedTickers = Array.from(allSymbols.values());
+                
+                if (mergedTickers.length > 0) {
+                    userTickers = mergedTickers;
+                    
+                    // Update local storage
+                    const users = JSON.parse(localStorage.getItem('dca_users') || '{}');
+                    if (users[username]) {
+                        users[username].tickers = userTickers;
+                        localStorage.setItem('dca_users', JSON.stringify(users));
+                    }
+                    
+                    // Push merged back to cloud
+                    await syncToCloud(username, userTickers);
+                    
+                    console.log('Synced:', localTickers.length, 'local +', cloudTickers.length, 'cloud =', mergedTickers.length, 'merged');
+                    return true;
+                }
+            } catch(e) {
+                console.log('Cloud sync failed, using local data');
+            }
+            return false;
+        }
+        
+        // Fetch data
+        async function fetchData() {
+            if (userTickers.length === 0) {
+                renderEmpty();
+                return;
+            }
+            
+            const symbols = userTickers.map(t => t.symbol);
+            const fetches = symbols.map(async symbol => {
+                try {
+                    const res = await fetch('/api/prices?symbol=' + encodeURIComponent(symbol));
+                    const data = await res.json();
+                    
+                    if (data.prices && data.prices.length > 0) {
+                        const prices = data.prices;
+                        const current = data.currentPrice;
+                        const change = data.change || 0;
+                        
+                        let gains = 0, losses = 0;
+                        for (let i = 1; i <= 14 && i < prices.length; i++) {
+                            const c = prices[i] - prices[i-1];
+                            if (c > 0) gains += c; else losses -= c;
+                        }
+                        const rsi = losses === 0 ? 100 : 100 - (100 / (1 + gains / losses));
+                        
+                        // Score based on oversold + value (lower RSI = higher score for DCA)
+                        // RSI < 30 = oversold (buy signal) = high score
+                        // RSI > 70 = overbought (avoid) = low score
+                        let rsiScore = 0;
+                        if (rsi < 30) rsiScore = 10; // Oversold - best buy
+                        else if (rsi < 40) rsiScore = 8;
+                        else if (rsi < 50) rsiScore = 6;
+                        else if (rsi < 60) rsiScore = 4;
+                        else if (rsi < 70) rsiScore = 2;
+                        else rsiScore = 0; // Overbought - avoid
+                        
+                        // Momentum score (negative momentum = potential value)
+                        const momScore = change < -5 ? 10 : change < 0 ? 7 : change < 5 ? 4 : 1;
+                        
+                        const total = (rsiScore * 0.6) + (momScore * 0.4);
+                        
+                        const ticker = userTickers.find(t => t.symbol === symbol);
+                        const info = TICKER_DB[symbol] || {name: symbol, icon: '📊'};
+                        
+                        // Generate why reason
+                        let why = '';
+                        if (rsi < 30) why = 'RSI oversold at ' + rsi.toFixed(0) + ' - potential bounce opportunity';
+                        else if (rsi < 40) why = 'RSI approaching oversold - good entry zone';
+                        else if (change < -10) why = 'Down ' + Math.abs(change).toFixed(1) + '% recently - potential value';
+                        else if (rsi > 70) why = 'RSI overbought - consider waiting for pullback';
+                        else why = 'Neutral conditions - DCA appropriate';
+                        
+                        return {
+                            symbol, name: info.name, icon: info.icon,
+                            tag: ticker ? ticker.tag : 'growth',
+                            rsi: rsi.toFixed(0),
+                            fg: Math.round(rsi * 0.7 + Math.min(100, Math.max(0, 50 + change * 5)) * 0.3),
+                            price: current, change,
+                            score: total.toFixed(1),
+                            rating: total >= 7 ? 'BUY' : total >= 4 ? 'HOLD' : 'WAIT',
+                            why,
+                            loaded: true
+                        };
+                    } else {
+                        console.log('No price data for', symbol, data.error || 'unknown error');
+                    }
+                } catch(e) {
+                    console.log('Fetch error for', symbol, e.message);
+                }
+                
+                // Fallback for failed fetches
+                const ticker = userTickers.find(t => t.symbol === symbol);
+                const info = TICKER_DB[symbol] || {name: symbol, icon: '📊'};
+                return { 
+                    symbol, name: info.name, icon: info.icon, 
+                    tag: ticker ? ticker.tag : 'growth', 
+                    rsi: '50', fg: 50, price: 100, change: 0, 
+                    score: '5.0', rating: 'HOLD',
+                    why: 'Data unavailable - check ticker symbol',
+                    loaded: false
+                };
+            });
+            
+            const data = await Promise.all(fetches);
+            data.sort((a, b) => parseFloat(b.score) - parseFloat(a.score));
+            allResults = data;
+            render(data);
+        }
+        
+        function renderEmpty() {
+            document.getElementById('top-pick').innerHTML = '<h3>🏆 Top Pick</h3><div class="pick">Add tickers to get started</div><div class="reason">Click "Add Ticker" to build your DCA universe</div>';
+            document.getElementById('table-body').innerHTML = '<tr><td colspan="7" class="empty-table"><p>No tickers in your universe yet</p><button class="btn btn-primary" onclick="openAddModal()">➕ Add Your First Ticker</button></td></tr>';
+        }
+        
+        function render(results) {
+            const top = results[0];
+            document.getElementById('top-pick').innerHTML = 
+                '<h3>🏆 Top Pick</h3>' +
+                '<div class="pick">' + top.icon + ' ' + top.symbol + '</div>' +
+                '<div class="reason">' + top.name + ' | Score: ' + top.score + '/10 | RSI: ' + top.rsi + '</div>' +
+                '<div class="why-box"><h4>💡 Why this pick?</h4><p>' + top.why + '</p></div>';
+            
+            // Color palette for different assets
+            const colors = [
+                'rgba(0, 212, 255, 0.8)',   // Cyan
+                'rgba(123, 44, 191, 0.8)',   // Purple
+                'rgba(0, 255, 100, 0.8)',    // Green
+                'rgba(255, 107, 107, 0.8)',  // Red
+                'rgba(255, 170, 0, 0.8)',    // Orange
+                'rgba(100, 200, 255, 0.8)',  // Light blue
+                'rgba(255, 100, 200, 0.8)',  // Pink
+                'rgba(150, 255, 150, 0.8)',  // Light green
+            ];
+            
+            document.getElementById('table-body').innerHTML = results.map((r, i) => {
+                const color = colors[i % colors.length];
+                return '<tr onclick="removeTicker(\'' + r.symbol + '\')" title="Click to remove">' +
+                '<td><div class="asset-cell"><div class="asset-icon" style="background:' + color + '">' + r.icon + '</div><div><strong>' + r.symbol + '</strong><div class="asset-name">' + r.name + '</div></div></div></td>' +
+                '<td><span class="tag-badge tag-' + r.tag + '">' + r.tag + '</span></td>' +
+                '<td><span class="rating-badge rating-' + r.rating.toLowerCase() + '">' + r.rating + '</span></td>' +
+                '<td style="font-weight:700">' + r.score + '</td>' +
+                '<td class="' + (r.rsi < 30 ? 'positive' : r.rsi > 70 ? 'negative' : '') + '">' + r.rsi + '</td>' +
+                '<td><span class="fg-badge ' + getFGClass(r.fg) + '">' + r.fg + '</span></td>' +
+                '<td>$' + r.price.toLocaleString(undefined, {maximumFractionDigits:2}) + '</td>' +
+                '</tr>';
+            }).join('');
+            
+            renderCharts(results, colors);
+        }
+        
+        function getFGClass(fg) {
+            if (fg <= 25) return 'extreme-fear';
+            if (fg <= 45) return 'fear';
+            if (fg <= 55) return 'neutral-fg';
+            if (fg <= 75) return 'greed';
+            return 'extreme-greed';
+        }
+        
+        function renderCharts(results, colors) {
+            const labels = results.map(r => r.symbol);
+            const scores = results.map(r => parseFloat(r.score));
+            const rsiVals = results.map(r => parseFloat(r.rsi));
+            
+            if (scoreChart) scoreChart.destroy();
+            scoreChart = new Chart(document.getElementById('scoreChart'), {
+                type: 'bar',
+                data: { labels, datasets: [{ data: scores, backgroundColor: colors, borderRadius: 6 }] },
+                options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 10, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#666' } }, x: { grid: { display: false }, ticks: { color: '#666' } } } }
+            });
+            
+            if (rsiChart) rsiChart.destroy();
+            rsiChart = new Chart(document.getElementById('rsiChart'), {
+                type: 'line',
+                data: { labels, datasets: [{ data: rsiVals, borderColor: '#00d4ff', backgroundColor: 'rgba(0,212,255,0.1)', fill: true, tension: 0.4, pointBackgroundColor: colors, pointRadius: 6, pointBorderColor: colors, pointBorderWidth: 2 }] },
+                options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 100, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#666' } }, x: { grid: { display: false }, ticks: { color: '#666' } } } }
+            });
+        }
+        
+        function refresh() { fetchData(); }
+        
+        function exportJSON() {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([JSON.stringify(allResults, null, 2)], { type: 'application/json' }));
+            a.download = 'dca-portfolio.json';
+            a.click();
+        }
+        
+        // Chat functions
+        function toggleChat() {
+            document.getElementById('chat-modal').classList.toggle('active');
+        }
+        
+        async function sendChat() {
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (!message) return;
+            
+            const messagesDiv = document.getElementById('chat-messages');
+            
+            // Add user message
+            messagesDiv.innerHTML += '<div class="chat-msg user">' + message + '</div>';
+            input.value = '';
+            
+            // Scroll to bottom
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            
+            // Get ticker symbols for context
+            const tickers = userTickers.map(t => t.symbol);
+            
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message, tickers })
+                });
+                
+                const data = await res.json();
+                messagesDiv.innerHTML += '<div class="chat-msg assistant">' + data.response + '</div>';
+            } catch(e) {
+                messagesDiv.innerHTML += '<div class="chat-msg assistant">Sorry, I had trouble processing that. Please try again.</div>';
+            }
+            
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        // Start
+        init();
+        
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        console.log('SW registered:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.log('SW registration failed:', error);
+                    });
+            });
+        }
+        
+        // PWA Install Prompt
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            // Show install button or banner
+            showInstallBanner();
+        });
+        
+        function showInstallBanner() {
+            const banner = document.createElement('div');
+            banner.id = 'install-banner';
+            banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:linear-gradient(135deg,#00d4ff,#7b2cbf);color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;z-index:1000;font-size:0.9rem;';
+            banner.innerHTML = `
+                <span>📱 Add DCA Tracker to Home Screen</span>
+                <button onclick="installPWA()" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);color:#fff;padding:6px 12px;border-radius:6px;cursor:pointer;margin-left:10px;">Install</button>
+                <button onclick="this.parentElement.remove()" style="background:none;border:none;color:#fff;font-size:1.2rem;cursor:pointer;margin-left:10px;">×</button>
+            `;
+            document.body.appendChild(banner);
+        }
+        
+        async function installPWA() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log('PWA install:', outcome);
+                deferredPrompt = null;
+                document.getElementById('install-banner')?.remove();
+            }
+        }
+        
+        // Handle PWA shortcuts
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('action') === 'add') {
+            setTimeout(() => openAddModal(), 500);
+        } else if (params.get('action') === 'chat') {
+            setTimeout(() => { toggleChat(); document.getElementById('chat-input').focus(); }, 500);
+        } else if (params.get('action') === 'top') {
+            // Scroll to top pick
+            setTimeout(() => document.getElementById('top-pick').scrollIntoView({ behavior: 'smooth' }), 500);
+        }
+        
+        // Handle shared ticker from protocol handler
+        const ticker = params.get('ticker');
+        if (ticker) {
+            setTimeout(() => {
+                if (!userTickers.find(t => t.symbol === ticker.toUpperCase())) {
+                    selectTicker(ticker.toUpperCase());
+                }
+            }, 500);
+        }
+    </script>
+</body>
+</html>
