@@ -146,8 +146,10 @@ function ScoresChart({ data, theme, onPick, focused, chartStyle = 'bars' }) {
     );
   }
 
+  const minW = Math.max(data.length * 28 + 22, 220);
   return (
-    <div style={{ position: 'relative', paddingLeft: 22, paddingBottom: 28 }}>
+    <div style={{ overflowX: 'auto' }}>
+    <div style={{ position: 'relative', paddingLeft: 22, paddingBottom: 28, minWidth: minW }}>
       {[0, 2, 4, 6, 8, 10].map(y => (
         <div key={y} style={{ position: 'absolute', left: 0, right: 0, bottom: 28 + (y / max) * 150, borderTop: `1px dashed ${theme.line}`, opacity: .6 }}>
           <span style={{ position: 'absolute', left: 0, top: -7, fontSize: 9, color: theme.text3, fontFamily: 'var(--font-mono)' }}>{y}</span>
@@ -176,6 +178,7 @@ function ScoresChart({ data, theme, onPick, focused, chartStyle = 'bars' }) {
           );
         })}
       </div>
+    </div>
     </div>
   );
 }
@@ -370,13 +373,15 @@ function BottomNav({ theme, tab, setTab, onAdd }) {
   ];
   return (
     <div style={{
-      position: 'absolute', left: 12, right: 12, bottom: 14, height: 56,
+      margin: '0 12px',
+      marginBottom: 'calc(14px + env(safe-area-inset-bottom, 0px))',
+      height: 56,
       borderRadius: 18, padding: '0 4px',
-      background: 'rgba(20,27,48,.82)',
+      background: 'rgba(20,27,48,.92)',
       backdropFilter: 'blur(28px) saturate(180%)',
       WebkitBackdropFilter: 'blur(28px) saturate(180%)',
       border: `1px solid ${theme.line2}`,
-      boxShadow: '0 12px 30px rgba(0,0,0,.25), 0 1px 0 rgba(255,255,255,.1) inset',
+      boxShadow: '0 12px 30px rgba(0,0,0,.35), 0 1px 0 rgba(255,255,255,.1) inset',
       display: 'flex', alignItems: 'center',
     }}>
       {tabs.slice(0, 2).map(t => <NavBtn key={t.id} t={t} tab={tab} setTab={setTab} theme={theme}/>)}
@@ -614,7 +619,7 @@ function Dashboard({ theme, navigate, user, holdings, loading, onRefresh, lastRe
         </div>
       )}
 
-      <div style={{ height: 80 }}/>
+      <div style={{ height: 110 }}/>
     </div>
   );
 }
@@ -725,12 +730,12 @@ function HoldingRow({ h, theme, last, onClick }) {
       </div>
       <div><RatingPill rating={h.displayRating || 'HOLD'}/></div>
       <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: h.rsi == null ? theme.text3 : h.rsi < 30 ? '#10B981' : h.rsi > 70 ? '#EF4444' : theme.text }}>{h.rsi ?? '—'}</div>
-      <div title={h.sym === 'MSTR' ? 'PE excluded — Bitcoin treasury company' : undefined} style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: (h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.fpe == null) ? theme.text3 : h.fpe < 15 ? '#10B981' : h.fpe <= 35 ? '#F59E0B' : '#EF4444' }}>
-        {(h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.fpe == null) ? (h.sym === 'MSTR' ? '—*' : '—') : parseFloat(h.fpe).toFixed(1)}
+      <div title={h.sym === 'MSTR' ? 'PE excluded — Bitcoin treasury company' : undefined} style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: (h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.sym === 'MSTR' || h.fpe == null) ? theme.text3 : h.fpe < 15 ? '#10B981' : h.fpe <= 35 ? '#F59E0B' : '#EF4444' }}>
+        {(h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.sym === 'MSTR' || h.fpe == null) ? (h.sym === 'MSTR' ? '—*' : '—') : parseFloat(h.fpe).toFixed(1)}
       </div>
       <div style={{ textAlign: 'right' }}>
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: theme.text }}>
-          {h.price ? `$${fmtPrice(h.price)}` : '—'}
+          {h.price != null && h.price > 0 ? `$${fmtPrice(h.price)}` : '—'}
         </div>
         {h.chg != null && (
           <div style={{ fontSize: 10, color: h.chg >= 0 ? '#10B981' : '#EF4444', fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2 }}>
@@ -756,7 +761,7 @@ function timeAgo(dateStr) {
 function RecentNews({ sym, theme }) {
   const [articles, setArticles] = useState(null);
   useEffect(() => {
-    fetch(`/api/tickernews?tickers=${sym}`)
+    fetch(`/api/tickernews?symbol=${sym}`)
       .then(r => r.json())
       .then(d => setArticles(d.articles || []))
       .catch(() => setArticles([]));
@@ -844,9 +849,9 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
         <Stat theme={theme} label="Score" value={h.score} tint={c} maxValue={10} bar/>
         <Stat theme={theme} label="RSI (14)" value={h.rsi ?? '—'} tint={rsiSignalColor(h.rsi, theme)} maxValue={100} bar={h.rsi != null} zones/>
         <Stat theme={theme} label="Forward P/E"
-          value={h.fpe != null ? parseFloat(h.fpe).toFixed(1) : '—'}
-          tint={h.fpe == null ? theme.text3 : (h.fpe > 40 ? '#EF4444' : h.fpe > 25 ? '#F59E0B' : '#10B981')}
-          maxValue={60} bar={h.fpe != null} style={{ gridColumn: 'span 2' }}/>
+          value={(h.fpe != null && h.sym !== 'MSTR') ? parseFloat(h.fpe).toFixed(1) : '—'}
+          tint={(h.fpe == null || h.sym === 'MSTR') ? theme.text3 : (h.fpe > 40 ? '#EF4444' : h.fpe > 25 ? '#F59E0B' : '#10B981')}
+          maxValue={60} bar={h.fpe != null && h.sym !== 'MSTR'} style={{ gridColumn: 'span 2' }}/>
         <Stat theme={theme} label="72-Day EMA"
           value={h.ma72 != null ? `$${fmtPrice(h.ma72)}` : '—'}
           tint={h.aboveMa72 == null ? theme.text3 : h.aboveMa72 ? '#10B981' : '#F59E0B'}/>
@@ -904,7 +909,7 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
       <div style={{ padding: '0 16px' }}>
         <button style={{ width: '100%', height: 46, borderRadius: 12, cursor: 'pointer', border: `1px solid ${theme.line2}`, background: theme.pillBg, color: theme.text, fontWeight: 600, fontSize: 13 }}>Set Alert</button>
       </div>
-      <div style={{ height: 80 }}/>
+      <div style={{ height: 110 }}/>
     </div>
   );
 }
@@ -1003,7 +1008,7 @@ function AddTicker({ theme, onBack, selectedTickers, onToggle }) {
           })}
         </div>
       )}
-      <div style={{ height: 80 }}/>
+      <div style={{ height: 110 }}/>
     </div>
   );
 }
@@ -1065,7 +1070,7 @@ function GlossaryScreen({ theme, onBack }) {
           <b style={{ color: theme.text }}>Source transparency.</b> Price + RSI from Yahoo Finance, F&G from CNN/Alternative.me, Forward P/E from analyst consensus. Composite Score is an open formula — see Settings → Score weights.
         </div>
       </div>
-      <div style={{ height: 80 }}/>
+      <div style={{ height: 110 }}/>
     </div>
   );
 }
@@ -1116,7 +1121,7 @@ function SettingsScreen({ theme, onBack, onGlossary, onSignOut, user }) {
         <button onClick={onSignOut} style={{ width: '100%', height: 44, borderRadius: 12, border: `1px solid ${theme.line2}`, background: theme.pillBg, color: '#EF4444', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Log out</button>
       </div>
       <div style={{ textAlign: 'center', fontSize: 10, color: theme.text3, padding: '4px 16px 16px', fontFamily: 'var(--font-mono)' }}>DCA Tracker 3.0.0</div>
-      <div style={{ height: 80 }}/>
+      <div style={{ height: 110 }}/>
     </div>
   );
 }
@@ -1564,7 +1569,7 @@ function CalculatorScreen({ theme, holdings }) {
         </div>
       </div>
 
-      <div style={{ height: 80 }}/>
+      <div style={{ height: 110 }}/>
     </div>
   );
 }
@@ -1900,7 +1905,7 @@ export default function Home() {
       const isCrypto = tag === 'CRYPTO';
       const aboveMa72 = m.aboveMa72 ?? null;
       const aboveMa200 = m.aboveMa200 ?? null;
-      const score = computeScore(rsi, fgIndex, isCrypto ? null : fpe, rating, isCrypto, aboveMa72, aboveMa200);
+      const score = computeScore(rsi, fgIndex, (isCrypto || sym === 'MSTR') ? null : fpe, rating, isCrypto, aboveMa72, aboveMa200);
       const displayRating = score >= 8 ? 'STRONG BUY' : score >= 6 ? 'BUY' : score >= 4 ? 'HOLD' : 'WAIT';
       return {
         sym,
@@ -1954,7 +1959,7 @@ export default function Home() {
       <Head>
         <title>DCA Tracker</title>
         <meta name="description" content="Transparent DCA analytics — not advice"/>
-        <meta name="viewport" content="width=device-width, initial-scale=1"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
         <link rel="preconnect" href="https://fonts.googleapis.com"/>
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>
         <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
@@ -1962,7 +1967,7 @@ export default function Home() {
 
       <style jsx global>{`
         :root { --font-ui: "Geist", system-ui, sans-serif; --font-mono: "Geist Mono", ui-monospace, monospace; }
-        html, body { margin: 0; padding: 0; background: ${theme.bg}; font-family: var(--font-ui); -webkit-font-smoothing: antialiased; height: 100%; }
+        html, body { margin: 0; padding: 0; background: ${theme.bg}; font-family: var(--font-ui); -webkit-font-smoothing: antialiased; height: 100%; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
         * { box-sizing: border-box; }
         @keyframes staxFade { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
         button { font-family: inherit; }
@@ -1976,9 +1981,9 @@ export default function Home() {
         /* Mobile defaults */
         .dca-sidebar   { display: none; }
         .dca-dsk-hdr   { display: none; }
-        .dca-mob-nav   { display: block; }
+        .dca-mob-nav   { position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; display: block; }
         .dca-mob-shell { max-width: 430px; margin: 0 auto; min-height: 100vh; position: relative; overflow: hidden; }
-        .dca-mob-inner { position: absolute; inset: 0; overflow-y: auto; padding-top: 8px; padding-bottom: 8px; }
+        .dca-mob-inner { position: absolute; inset: 0; overflow-y: auto; padding-top: 8px; padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
         .dca-dsk-only  { display: none; }
         .dca-mob-only  { display: block; }
 
@@ -2080,13 +2085,8 @@ export default function Home() {
             </div>
           )}
 
-          {/* Mobile disclaimer + bottom nav */}
+          {/* Mobile bottom nav */}
           <div className="dca-mob-nav">
-            {!onSignin && (
-              <div style={{ padding: '4px 12px 2px', background: theme.bg, borderTop: `1px solid ${theme.line}`, textAlign: 'center' }}>
-                <span style={{ fontSize: 9, color: theme.text3 }}>Educational market data only. Not financial advice. Not personalized recommendations.</span>
-              </div>
-            )}
             <BottomNav theme={theme} tab={tab} setTab={setTab} onAdd={() => navigate('add')}/>
           </div>
         </div>
