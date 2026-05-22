@@ -672,8 +672,8 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
             </button>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 62px 44px 32px 30px 30px 1fr', gap: 6, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
-          {['ASSET', 'RATING', 'SCORE', 'F&G', '72MA', '200MA', 'PRICE'].map((h, i) => (
+        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 62px 44px 30px 30px 1fr', gap: 6, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
+          {['ASSET', 'RATING', 'SCORE', '72MA', '200MA', 'PRICE / DATA'].map((h, i) => (
             <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
           ))}
         </div>
@@ -692,7 +692,7 @@ function HoldingRow({ h, theme, last, onClick }) {
   const c = getColor(h.sym);
   return (
     <div onClick={onClick} style={{
-      display: 'grid', gridTemplateColumns: '1.6fr 62px 44px 32px 30px 30px 1fr', gap: 6, alignItems: 'center',
+      display: 'grid', gridTemplateColumns: '1.6fr 62px 44px 30px 30px 1fr', gap: 6, alignItems: 'center',
       padding: '11px 14px', borderBottom: last ? 'none' : `1px solid ${theme.line}`,
       cursor: 'pointer',
     }}>
@@ -708,7 +708,6 @@ function HoldingRow({ h, theme, last, onClick }) {
       </div>
       <div><RatingPill rating={h.rating || 'HOLD'}/></div>
       <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: c }}>{h.score}</div>
-      <div style={{ textAlign: 'right' }}><FGPill v={h.fg}/></div>
       <div style={{ textAlign: 'right' }}><MAPill above={h.aboveMa72}/></div>
       <div style={{ textAlign: 'right' }}><MAPill above={h.aboveMa200}/></div>
       <div style={{ textAlign: 'right' }}>
@@ -720,11 +719,16 @@ function HoldingRow({ h, theme, last, onClick }) {
             {h.chg >= 0 ? '▲' : '▼'} {Math.abs(h.chg).toFixed(2)}%
           </div>
         )}
-        {h.fpe != null && h.tag !== 'CRYPTO' && h.tag !== 'HEDGE' && (
-          <div style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: h.fpe < 15 ? '#10B981' : h.fpe <= 35 ? '#F59E0B' : '#EF4444', textAlign: 'right', marginTop: 1 }}>
-            F/PE {parseFloat(h.fpe).toFixed(1)}
-          </div>
-        )}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
+          {h.fpe != null && h.tag !== 'CRYPTO' && h.tag !== 'HEDGE' && (
+            <span style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: h.fpe < 15 ? '#10B981' : h.fpe <= 35 ? '#F59E0B' : '#EF4444' }}>
+              PE {parseFloat(h.fpe).toFixed(1)}
+            </span>
+          )}
+          <span style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: fgColor(h.fg) }}>
+            FG {h.fg ?? '—'}
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -1618,8 +1622,8 @@ function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgInd
       <div style={{ flex: '0 0 60%', overflowY: 'auto', borderRight: `1px solid rgba(255,255,255,.06)`, padding: '24px 20px 24px 28px' }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: theme.text3, letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 14 }}>Holdings</div>
         <Card theme={theme} style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 62px 44px 32px 30px 30px 1fr', gap: 6, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}` }}>
-            {['ASSET', 'RATING', 'SCORE', 'F&G', '72MA', '200MA', 'PRICE'].map((h, i) => (
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 62px 44px 30px 30px 1fr', gap: 6, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}` }}>
+            {['ASSET', 'RATING', 'SCORE', '72MA', '200MA', 'PRICE / DATA'].map((h, i) => (
               <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
             ))}
           </div>
