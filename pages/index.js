@@ -695,7 +695,7 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
           </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 62px 44px 30px 30px 1fr', gap: 6, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
-          {['ASSET', 'RATING', 'SCORE', '72MA', '200MA', 'PRICE / DATA'].map((h, i) => (
+          {['ASSET', 'BUY RATING', 'SCORE', '72MA', '200MA', 'PRICE / DATA'].map((h, i) => (
             <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
           ))}
         </div>
@@ -1711,7 +1711,7 @@ function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgInd
         <div style={{ fontSize: 13, fontWeight: 700, color: theme.text3, letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 14 }}>Holdings</div>
         <Card theme={theme} style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 62px 44px 30px 30px 1fr', gap: 6, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}` }}>
-            {['ASSET', 'RATING', 'SCORE', '72MA', '200MA', 'PRICE / DATA'].map((h, i) => (
+            {['ASSET', 'BUY RATING', 'SCORE', '72MA', '200MA', 'PRICE / DATA'].map((h, i) => (
               <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
             ))}
           </div>
