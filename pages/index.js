@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import Head from 'next/head';
 import { Ic } from '../components/icons';
 import {
-  TICKER_COLORS, RATING_STYLES, TAG_STYLES, THEMES, GLOSSARY,
+  TICKER_COLORS, RATING_STYLES, RATING_LABELS, TAG_STYLES, THEMES, GLOSSARY,
   getColor, fgColor, fgLabel, rsiSignalColor, shade, fmtPrice, computeScore,
 } from '../components/tokens';
 
@@ -63,7 +63,7 @@ function RatingPill({ rating, large }) {
       color: s.fg, fontWeight: 700, fontSize: large ? 12 : 10.5, letterSpacing: '.06em',
     }}>
       <span style={{ width: 6, height: 6, borderRadius: 999, background: s.fg, boxShadow: `0 0 8px ${s.fg}` }}/>
-      {rating}
+      {RATING_LABELS[rating] || rating}
     </span>
   );
 }
@@ -362,7 +362,7 @@ function NotifBar({ theme, holdings }) {
     holdings.forEach(h => {
       if (h.rsi != null && h.rsi < 30) msgs.push({ c: '#10B981', msg: `${h.sym} RSI ${h.rsi} — approaching oversold` });
       if (h.rsi != null && h.rsi > 70) msgs.push({ c: '#EF4444', msg: `${h.sym} RSI ${h.rsi} — overbought, consider waiting` });
-      if (h.rating === 'BUY' || h.rating === 'STRONG BUY') msgs.push({ c: '#10B981', msg: `${h.sym} rated ${h.rating} today` });
+      if (h.rating === 'BUY' || h.rating === 'STRONG BUY') msgs.push({ c: '#10B981', msg: `${h.sym} — ${RATING_LABELS[h.rating]} signal today` });
     });
     if (!msgs.length) msgs.push({ c: theme.brand, msg: 'DCA Tracker — transparent analytics, not advice' });
     return msgs.slice(0, 4);
@@ -488,6 +488,9 @@ function SignIn({ theme, onEnter }) {
           <div style={{ marginTop: 8, fontSize: 11, color: theme.text3, paddingLeft: 2, lineHeight: 1.5 }}>
             New username? Claimed instantly. Returning? Your watchlist loads automatically.
           </div>
+          <div style={{ marginTop: 6, fontSize: 10.5, color: theme.text3, paddingLeft: 2, lineHeight: 1.5, fontStyle: 'italic' }}>
+            No email. No password. No brokerage connection.
+          </div>
         </div>
 
         <div style={{ flex: 1 }}/>
@@ -511,7 +514,7 @@ function SignIn({ theme, onEnter }) {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-function Dashboard({ theme, navigate, user, holdings, loading, onRefresh }) {
+function Dashboard({ theme, navigate, user, holdings, loading, onRefresh, lastRefreshed }) {
   const [focused, setFocused] = useState(null);
   const top = holdings[0];
   const chartData = holdings.slice(0, 10);
@@ -558,7 +561,7 @@ function Dashboard({ theme, navigate, user, holdings, loading, onRefresh }) {
         </div>
       )}
 
-      <HoldingsTable theme={theme} holdings={holdings} loading={loading} onPick={sym => navigate('detail', sym)} onRefresh={onRefresh}/>
+      <HoldingsTable theme={theme} holdings={holdings} loading={loading} onPick={sym => navigate('detail', sym)} onRefresh={onRefresh} lastRefreshed={lastRefreshed}/>
 
       {holdings.length === 0 && !loading && (
         <div style={{ textAlign: 'center', padding: '60px 20px', color: theme.text3 }}>
@@ -613,7 +616,8 @@ function TopPickCard({ theme, holding: h, onOpen }) {
       <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(16,185,129,.14)', border: '1px solid rgba(16,185,129,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>💡</div>
         <div style={{ flex: 1, fontSize: 12, color: theme.text2, lineHeight: 1.4 }}>
-          {h.why || `Score ${h.score}/10 — ${h.rating === 'BUY' || h.rating === 'STRONG BUY' ? 'favorable entry conditions today' : 'monitor for better entry'}`}
+          {h.why || `Score ${h.score}/10 — ${h.rating === 'BUY' || h.rating === 'STRONG BUY' ? 'market conditions currently score well for this DCA plan' : 'monitor for better entry'}`}{' '}
+          <a href="/methodology" style={{ color: '#5BC8FF', fontSize: 11, textDecoration: 'none', whiteSpace: 'nowrap' }}>Methodology →</a>
         </div>
         {Ic.chevR(16, theme.text3)}
       </div>
@@ -621,7 +625,8 @@ function TopPickCard({ theme, holding: h, onOpen }) {
   );
 }
 
-function HoldingsTable({ theme, holdings, loading, onPick, onRefresh }) {
+function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefreshed }) {
+  const minsAgo = lastRefreshed ? Math.floor((Date.now() - lastRefreshed) / 60000) : null;
   return (
     <div style={{ padding: '0 16px' }}>
       <Card theme={theme} style={{ padding: 0, overflow: 'hidden' }}>
@@ -630,9 +635,12 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh }) {
             <div style={{ fontSize: 14.5, fontWeight: 700, color: theme.text }}>Holdings</div>
             <div style={{ fontSize: 10.5, color: theme.text3, marginTop: 1 }}>{holdings.length} tickers · sorted by score</div>
           </div>
-          <button onClick={onRefresh} style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: theme.text2, background: theme.pillBg, border: `1px solid ${theme.line}`, padding: '5px 9px', borderRadius: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-            {Ic.refresh(12, theme.text2)} Refresh
-          </button>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            {minsAgo != null && <span style={{ fontSize: 10, color: theme.text3 }}>Updated {minsAgo === 0 ? 'just now' : `${minsAgo}m ago`}</span>}
+            <button onClick={onRefresh} style={{ fontSize: 11, fontWeight: 600, color: theme.text2, background: theme.pillBg, border: `1px solid ${theme.line}`, padding: '5px 9px', borderRadius: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+              {Ic.refresh(12, theme.text2)} Refresh
+            </button>
+          </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 60px 64px 50px 38px 1fr', gap: 8, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
           {['ASSET', 'TAG', 'RATING', 'SCORE', 'F&G', 'PRICE'].map((h, i) => (
@@ -1483,13 +1491,19 @@ function DesktopSidebar({ theme, activeScreen, onNav, user }) {
       </div>
       {/* User */}
       {user && (
-        <div style={{ padding: '12px 16px 18px', borderTop: `1px solid rgba(255,255,255,.06)`, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ padding: '12px 16px 8px', borderTop: `1px solid rgba(255,255,255,.06)`, display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 26, height: 26, borderRadius: 8, background: theme.brand + '28', color: theme.brand, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>
             {(user || 'G').slice(0, 1).toUpperCase()}
           </div>
           <div style={{ fontSize: 12, color: theme.text2, fontWeight: 500, fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user}</div>
         </div>
       )}
+      {/* Disclaimer */}
+      <div style={{ padding: user ? '0 12px 14px' : '12px 12px 14px', borderTop: user ? 'none' : `1px solid rgba(255,255,255,.06)` }}>
+        <div style={{ fontSize: 9, color: '#4B5478', lineHeight: 1.5, textAlign: 'center' }}>
+          Educational market data only.<br/>Not financial advice. Not personalized recommendations.
+        </div>
+      </div>
     </div>
   );
 }
@@ -1526,7 +1540,7 @@ function DesktopDashboardRight({ theme, holdings, loading, navigate, fgIndex }) 
     <>
       {top && (
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: theme.text3, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Top Pick</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: theme.text3, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Watchlist Leader</div>
           <TopPickCard theme={theme} holding={top} onOpen={() => navigate('detail', top.sym)}/>
         </div>
       )}
@@ -1593,7 +1607,7 @@ function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgInd
       <div style={{ flex: '0 0 40%', overflowY: 'auto', padding: '24px 28px 24px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {top && (
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: theme.text3, letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 12 }}>Top Pick</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: theme.text3, letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 12 }}>Watchlist Leader</div>
             <TopPickCard theme={theme} holding={top} onOpen={() => navigate('detail', top.sym)}/>
           </div>
         )}
@@ -1642,6 +1656,7 @@ export default function Home() {
   const [metricsMap, setMetricsMap] = useState({});
   const [fgIndex, setFgIndex] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState(null);
   const didMount = useRef(false);
 
   const cur = stack[stack.length - 1];
@@ -1731,6 +1746,7 @@ export default function Home() {
     }
     setMetricsMap(updated);
     setLoading(false);
+    setLastRefreshed(Date.now());
   };
 
   useEffect(() => {
@@ -1745,7 +1761,9 @@ export default function Home() {
       const rating = m.rating || 'HOLD';
       const rsi = m.rsi;
       const fpe = m.forwardPE ? parseFloat(m.forwardPE) : null;
-      const score = computeScore(rsi, fgIndex, fpe, rating);
+      const tag = tagFor(sym);
+      const isCrypto = tag === 'CRYPTO';
+      const score = computeScore(rsi, fgIndex, isCrypto ? null : fpe, rating, isCrypto);
       return {
         sym,
         name: m.name || sym,
@@ -1756,7 +1774,7 @@ export default function Home() {
         fg: fgIndex,
         rating,
         score,
-        tag: tagFor(sym),
+        tag,
         why: null,
       };
     }).sort((a, b) => b.score - a.score);
@@ -1780,13 +1798,13 @@ export default function Home() {
 
   let body;
   if (cur.screen === 'signin') body = <SignIn theme={theme} onEnter={handleEnter}/>;
-  else if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics}/>;
+  else if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed}/>;
   else if (cur.screen === 'detail') body = <AssetDetail theme={theme} sym={cur.arg} onBack={back} holdings={holdings} fgIndex={fgIndex}/>;
   else if (cur.screen === 'add') body = <AddTicker theme={theme} onBack={back} selectedTickers={selectedTickers} onToggle={toggleTicker}/>;
   else if (cur.screen === 'glossary') body = <GlossaryScreen theme={theme} onBack={back}/>;
   else if (cur.screen === 'settings') body = <SettingsScreen theme={theme} onBack={back} onGlossary={() => replace('glossary')} onSignOut={handleSignOut} user={user}/>;
   else if (cur.screen === 'calculator') body = <CalculatorScreen theme={theme} holdings={holdings}/>;
-  else body = <Dashboard theme={theme} navigate={navigate} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics}/>;
+  else body = <Dashboard theme={theme} navigate={navigate} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed}/>;
 
   return (
     <>
@@ -1896,7 +1914,7 @@ export default function Home() {
                 <div className="dca-dsk-only">
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: theme.text3, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Holdings — sorted by score</div>
-                    <HoldingsTable theme={theme} holdings={holdings} loading={loading} onPick={sym => navigate('detail', sym)} onRefresh={fetchMetrics}/>
+                    <HoldingsTable theme={theme} holdings={holdings} loading={loading} onPick={sym => navigate('detail', sym)} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed}/>
                   </div>
                 </div>
               </div>
@@ -1918,8 +1936,13 @@ export default function Home() {
             </div>
           )}
 
-          {/* Mobile bottom nav */}
+          {/* Mobile disclaimer + bottom nav */}
           <div className="dca-mob-nav">
+            {!onSignin && (
+              <div style={{ padding: '4px 12px 2px', background: theme.bg, borderTop: `1px solid ${theme.line}`, textAlign: 'center' }}>
+                <span style={{ fontSize: 9, color: theme.text3 }}>Educational market data only. Not financial advice. Not personalized recommendations.</span>
+              </div>
+            )}
             <BottomNav theme={theme} tab={tab} setTab={setTab} onAdd={() => navigate('add')}/>
           </div>
         </div>

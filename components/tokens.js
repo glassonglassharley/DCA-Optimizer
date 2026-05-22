@@ -17,6 +17,16 @@ export const RATING_STYLES = {
   'AVOID':      { fg:'#EF4444', bg:'rgba(239,68,68,.12)', bd:'rgba(239,68,68,.4)' },
 };
 
+export const RATING_LABELS = {
+  'STRONG BUY':  'High DCA Score',
+  'BUY':         'Favorable Setup',
+  'HOLD':        'Neutral',
+  'WAIT':        'Wait Zone',
+  'SELL':        'Sell Signal',
+  'STRONG SELL': 'Strong Sell',
+  'AVOID':       'Avoid',
+};
+
 export const TAG_STYLES = {
   CORE:'#22D3EE', HEDGE:'#FBBF24', SAT:'#A78BFA', INCOME:'#34D399',
   CRYPTO:'#F97316', TECH:'#818CF8', STOCK:'#60A5FA', ETF:'#34D399',
@@ -59,9 +69,9 @@ export const GLOSSARY = [
   { key:'TAGS', term:'Core / Hedge / Satellite / Income', cat:'Strategy',
     def:'Portfolio role tags. Core = backbone. Hedge = diversifier. Satellite = higher-conviction smaller positions. Income = yield-focused.',
     example:'XLV is CORE — the largest, longest-held positions in your portfolio.' },
-  { key:'RATINGS', term:'Buy / Hold / Wait / Avoid', cat:'Internal',
-    def:'Action the composite score suggests. These reflect signals only — your DCA schedule overrides any rating.',
-    example:'WAIT means metrics are unfavorable today; skip this buy and DCA into something else.' },
+  { key:'RATINGS', term:'Score Labels', cat:'Internal',
+    def:'Label the DCA composite score suggests. These reflect signals only — your DCA schedule overrides any label. Not financial advice.',
+    example:'"Wait Zone" means metrics are unfavorable today; skip this buy and DCA into something else.' },
   { key:'MA200', term:'200-day Moving Average', cat:'Technical',
     def:'Average closing price over the last 200 trading days. Price above = uptrend, below = downtrend.',
     example:'QQQ is currently 11% above its 200-day MA — extended.' },
@@ -114,7 +124,7 @@ export function fmtPrice(p) {
   return p.toFixed(2);
 }
 
-export function computeScore(rsi, fg, fpe, rating) {
+export function computeScore(rsi, fg, fpe, rating, isCrypto = false) {
   let score = 5;
   if (rsi != null) {
     if (rsi < 30) score += 2;
@@ -126,7 +136,7 @@ export function computeScore(rsi, fg, fpe, rating) {
     if (fg < 30) score += 1;
     else if (fg > 70) score -= 1;
   }
-  if (fpe != null) {
+  if (!isCrypto && fpe != null) {
     if (fpe < 20) score += 1;
     else if (fpe > 40) score -= 1;
   }
