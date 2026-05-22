@@ -622,7 +622,7 @@ function TopPickCard({ theme, holding: h, onOpen }) {
       <div style={{ padding: '14px 16px 12px', background: `linear-gradient(135deg, ${c}1A, transparent 60%)`, borderBottom: `1px solid ${theme.line}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           {Ic.trophy(16, '#FBBF24')}
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.12em', color: theme.text2 }}>TODAY&apos;S TOP PICK</span>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.12em', color: theme.text2 }}>WATCHLIST LEADER</span>
           <span style={{ marginLeft: 'auto', fontSize: 10, color: theme.text3, fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: 4 }}>
             {Ic.spark(11, '#FBBF24')} live data
           </span>
@@ -1682,7 +1682,7 @@ function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgInd
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 function tagFor(sym) {
-  const crypto = ['BTC', 'ETH', 'SOL', 'HYPE', 'COIN'];
+  const crypto = ['BTC', 'ETH', 'SOL', 'HYPE', 'COIN', 'MSTR'];
   const income = ['DIVO'];
   const hedge = ['GLD'];
   if (crypto.includes(sym)) return 'CRYPTO';

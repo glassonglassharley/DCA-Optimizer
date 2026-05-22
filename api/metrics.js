@@ -72,7 +72,7 @@ export default async function handler(req, res) {
 
     try {
         const endDate = Math.floor(Date.now() / 1000);
-        const startDate = endDate - 210 * 24 * 60 * 60;
+        const startDate = endDate - 300 * 24 * 60 * 60; // ~210 trading days needed for 200-day SMA
 
         const baseHeaders = { 'User-Agent': UA, 'Accept': '*/*', 'Accept-Language': 'en-US,en;q=0.9' };
 
