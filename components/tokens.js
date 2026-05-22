@@ -18,7 +18,7 @@ export const RATING_STYLES = {
 };
 
 export const RATING_LABELS = {
-  'STRONG BUY':  'High DCA Score',
+  'STRONG BUY':  'High',
   'BUY':         'Favorable Setup',
   'HOLD':        'Neutral',
   'WAIT':        'Wait Zone',

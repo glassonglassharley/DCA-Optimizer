@@ -81,7 +81,7 @@ export default function Methodology() {
               </thead>
               <tbody>
                 {[
-                  ['7–10', 'High DCA Score', 'Multiple favorable signals aligned'],
+                  ['7–10', 'High', 'Multiple favorable signals aligned'],
                   ['5.5–7', 'Favorable Setup', 'More signals positive than negative'],
                   ['4–5.5', 'Neutral', 'Mixed or no strong signals'],
                   ['0–4', 'Wait Zone', 'Signals unfavorable for adding now'],
@@ -145,7 +145,7 @@ export default function Methodology() {
                 </thead>
                 <tbody>
                   {[
-                    ['8–10', 'High DCA Score', 'Load the Boat — all signals aligned, maximum conviction entry'],
+                    ['8–10', 'High', 'Load the Boat — all signals aligned, maximum conviction entry'],
                     ['6–7.9', 'Favorable Setup', 'Swing Entry — near support, good risk/reward'],
                     ['4–5.9', 'Neutral', 'Quick Entry — mixed signals, proceed with normal DCA schedule'],
                     ['0–3.9', 'Wait Zone', 'No entry — signals unfavorable, defer this buy cycle'],
