@@ -685,8 +685,8 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
             </button>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 58px 38px 30px 36px 1fr', gap: 4, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
-          {['ASSET', 'BUY RATING', 'SCORE', 'RSI', 'PE', 'PRICE'].map((h, i) => (
+        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 68px 34px 42px 1fr', gap: 6, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
+          {['ASSET', 'BUY RATING', 'RSI', 'PE', 'PRICE'].map((h, i) => (
             <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
           ))}
         </div>
@@ -709,7 +709,7 @@ function HoldingRow({ h, theme, last, onClick }) {
   const c = getColor(h.sym);
   return (
     <div onClick={onClick} style={{
-      display: 'grid', gridTemplateColumns: '1.6fr 58px 38px 30px 36px 1fr', gap: 4, alignItems: 'center',
+      display: 'grid', gridTemplateColumns: '1.6fr 68px 34px 42px 1fr', gap: 6, alignItems: 'center',
       padding: '11px 14px', borderBottom: last ? 'none' : `1px solid ${theme.line}`,
       cursor: 'pointer',
     }}>
@@ -724,7 +724,6 @@ function HoldingRow({ h, theme, last, onClick }) {
         </div>
       </div>
       <div><RatingPill rating={h.displayRating || 'HOLD'}/></div>
-      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: c }}>{h.score}</div>
       <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: h.rsi == null ? theme.text3 : h.rsi < 30 ? '#10B981' : h.rsi > 70 ? '#EF4444' : theme.text }}>{h.rsi ?? '—'}</div>
       <div title={h.sym === 'MSTR' ? 'PE excluded — Bitcoin treasury company' : undefined} style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: (h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.fpe == null) ? theme.text3 : h.fpe < 15 ? '#10B981' : h.fpe <= 35 ? '#F59E0B' : '#EF4444' }}>
         {(h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.fpe == null) ? (h.sym === 'MSTR' ? '—*' : '—') : parseFloat(h.fpe).toFixed(1)}
@@ -757,7 +756,7 @@ function timeAgo(dateStr) {
 function RecentNews({ sym, theme }) {
   const [articles, setArticles] = useState(null);
   useEffect(() => {
-    fetch(`/api/news?tickers=${sym}`)
+    fetch(`/api/tickernews?tickers=${sym}`)
       .then(r => r.json())
       .then(d => setArticles(d.articles || []))
       .catch(() => setArticles([]));
@@ -1707,8 +1706,8 @@ function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgInd
       <div style={{ flex: '0 0 60%', overflowY: 'auto', borderRight: `1px solid rgba(255,255,255,.06)`, padding: '24px 20px 24px 28px' }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: theme.text3, letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 14 }}>Holdings</div>
         <Card theme={theme} style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 58px 38px 30px 36px 1fr', gap: 4, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}` }}>
-            {['ASSET', 'BUY RATING', 'SCORE', 'RSI', 'PE', 'PRICE'].map((h, i) => (
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 68px 34px 42px 1fr', gap: 6, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}` }}>
+            {['ASSET', 'BUY RATING', 'RSI', 'PE', 'PRICE'].map((h, i) => (
               <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
             ))}
           </div>
