@@ -690,8 +690,8 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
             </button>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 58px 28px 32px 42px 48px 1fr', gap: 4, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
-          {['ASSET', 'BUY RATING', 'RSI', 'PE', '52L', '52H', 'PRICE'].map((h, i) => (
+        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 62px 30px 36px 48px 1fr', gap: 5, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
+          {['ASSET', 'BUY RATING', 'RSI', 'PE', '200MA', 'PRICE'].map((h, i) => (
             <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
           ))}
         </div>
@@ -704,27 +704,21 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
         <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.6, paddingTop: 12, borderTop: '1px solid #1e2433', margin: '0 16px 16px' }}>
           <div>* RSI — Relative Strength Index (14-day). ≤30 oversold · ≥70 overbought</div>
           <div>* PE — Forward Price-to-Earnings ratio. &lt;15 undervalued · &gt;35 premium. Stocks only.</div>
-          <div>* 52L / 52H — 52-week Low / High. <span style={{ color: '#10B981' }}>Green</span> = within 15% of low · <span style={{ color: '#EF4444' }}>Red</span> = within 15% of high</div>
+          <div>* 200MA — Distance from 200-day Moving Average. <span style={{ color: '#10B981' }}>Green</span> = below baseline (favorable DCA zone) · <span style={{ color: '#EF4444' }}>Red</span> = &gt;20% extended</div>
         </div>
       </Card>
     </div>
   );
 }
 
-function fmt52wk(p) {
-  if (p == null) return '—';
-  if (p >= 1000) return '$' + Math.round(p).toLocaleString('en-US');
-  if (p >= 100)  return '$' + Math.round(p);
-  return '$' + parseFloat(p).toFixed(2);
-}
-
 function HoldingRow({ h, theme, last, onClick }) {
   const c = getColor(h.sym);
-  const near52Low  = h.wkLow  != null && h.price != null && h.price <= h.wkLow  * 1.15;
-  const near52High = h.wkHigh != null && h.price != null && h.price >= h.wkHigh * 0.85;
+  const d = h.ma200dist;
+  const distColor = d == null ? theme.text3 : d < 0 ? '#10B981' : d > 20 ? '#EF4444' : theme.text;
+  const distLabel = d == null ? '—' : (d >= 0 ? '+' : '') + d.toFixed(1) + '%';
   return (
     <div onClick={onClick} style={{
-      display: 'grid', gridTemplateColumns: '1.2fr 58px 28px 32px 42px 48px 1fr', gap: 4, alignItems: 'center',
+      display: 'grid', gridTemplateColumns: '1.4fr 62px 30px 36px 48px 1fr', gap: 5, alignItems: 'center',
       padding: '11px 14px', borderBottom: last ? 'none' : `1px solid ${theme.line}`,
       cursor: 'pointer',
     }}>
@@ -743,11 +737,8 @@ function HoldingRow({ h, theme, last, onClick }) {
       <div title={h.sym === 'MSTR' ? 'PE excluded — Bitcoin treasury company' : undefined} style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: (h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.sym === 'MSTR' || h.fpe == null) ? theme.text3 : h.fpe < 15 ? '#10B981' : h.fpe <= 35 ? '#F59E0B' : '#EF4444' }}>
         {(h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.sym === 'MSTR' || h.fpe == null) ? (h.sym === 'MSTR' ? '—*' : '—') : parseFloat(h.fpe).toFixed(1)}
       </div>
-      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: near52Low ? '#10B981' : theme.text3, overflow: 'hidden' }}>
-        {fmt52wk(h.wkLow)}
-      </div>
-      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: near52High ? '#EF4444' : theme.text3, overflow: 'hidden' }}>
-        {fmt52wk(h.wkHigh)}
+      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: distColor, overflow: 'hidden' }}>
+        {distLabel}
       </div>
       <div style={{ textAlign: 'right', overflow: 'hidden' }}>
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: theme.text }}>
@@ -875,6 +866,27 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
           value={h.ma200 != null ? `$${fmtPrice(h.ma200)}` : '—'}
           tint={h.aboveMa200 == null ? theme.text3 : h.aboveMa200 ? '#10B981' : '#F59E0B'}/>
       </div>
+
+      {h.ma200dist != null && (
+        <div style={{ padding: '0 16px' }}>
+          <Card theme={theme} style={{ padding: '12px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: theme.text2, letterSpacing: '.06em' }}>200-DAY BASELINE</span>
+              <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700,
+                color: h.ma200dist < 0 ? '#10B981' : h.ma200dist > 20 ? '#EF4444' : theme.text }}>
+                {(h.ma200dist >= 0 ? '+' : '') + h.ma200dist.toFixed(1) + '%'}
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: theme.text2, lineHeight: 1.55 }}>
+              {h.ma200dist < 0
+                ? `Price is ${Math.abs(h.ma200dist).toFixed(1)}% below its 200-day baseline — historically a strong DCA entry zone.`
+                : h.ma200dist > 20
+                  ? `Price is ${h.ma200dist.toFixed(1)}% above its 200-day baseline — significantly extended, consider waiting.`
+                  : `Price is ${h.ma200dist.toFixed(1)}% above its 200-day baseline — slightly extended.`}
+            </div>
+          </Card>
+        </div>
+      )}
 
       {h.fpe != null && (
         <div style={{ padding: '0 16px' }}>
@@ -1727,8 +1739,8 @@ function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgInd
       <div style={{ flex: '0 0 60%', overflowY: 'auto', borderRight: `1px solid rgba(255,255,255,.06)`, padding: '24px 20px 24px 28px' }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: theme.text3, letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 14 }}>Holdings</div>
         <Card theme={theme} style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 58px 28px 32px 42px 48px 1fr', gap: 4, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}` }}>
-            {['ASSET', 'BUY RATING', 'RSI', 'PE', '52L', '52H', 'PRICE'].map((h, i) => (
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 62px 30px 36px 48px 1fr', gap: 5, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}` }}>
+            {['ASSET', 'BUY RATING', 'RSI', 'PE', '200MA', 'PRICE'].map((h, i) => (
               <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
             ))}
           </div>
@@ -1921,7 +1933,8 @@ export default function Home() {
       const isCrypto = tag === 'CRYPTO';
       const aboveMa72 = m.aboveMa72 ?? null;
       const aboveMa200 = m.aboveMa200 ?? null;
-      const score = computeScore(rsi, fgIndex, (isCrypto || sym === 'MSTR') ? null : fpe, rating, isCrypto, aboveMa72, aboveMa200);
+      const ma200dist = (m.currentPrice && m.ma200) ? ((m.currentPrice - m.ma200) / m.ma200) * 100 : null;
+      const score = computeScore(rsi, fgIndex, (isCrypto || sym === 'MSTR') ? null : fpe, rating, isCrypto, aboveMa72, ma200dist);
       const displayRating = score >= 8 ? 'STRONG BUY' : score >= 6 ? 'BUY' : score >= 4 ? 'HOLD' : 'WAIT';
       return {
         sym,
@@ -1939,6 +1952,7 @@ export default function Home() {
         ma200: m.ma200 || null,
         aboveMa72,
         aboveMa200,
+        ma200dist: ma200dist != null ? parseFloat(ma200dist.toFixed(1)) : null,
         wkLow:  m.fiftyTwoWeekLow  ?? null,
         wkHigh: m.fiftyTwoWeekHigh ?? null,
         why: null,

@@ -117,11 +117,11 @@ export default function Methodology() {
               </thead>
               <tbody>
                 {[
-                  ['RSI (14-day)', '~30%', 'RSI < 30 = +2 · RSI 30–50 = +1 · RSI 60–70 = −1 · RSI > 70 = −2'],
-                  ['Fear & Greed Index', '~20%', 'F&G < 30 (fear) = +1 · F&G > 70 (greed) = −1'],
-                  ['Forward P/E (stocks only)', '~20%', 'F/PE < 20 = +1 · F/PE > 40 = −1 · Skip for crypto/ETFs'],
+                  ['RSI (14-day)', '~25%', 'RSI < 30 = +2 · RSI 30–50 = +1 · RSI 60–70 = −1 · RSI > 70 = −2'],
+                  ['Fear & Greed Index', '~15%', 'F&G < 30 (fear) = +1 · F&G > 70 (greed) = −1'],
+                  ['Forward P/E (stocks only)', '~15%', 'F/PE < 20 = +1 · F/PE > 40 = −1 · Skip for crypto/ETFs'],
                   ['72-Day EMA Position', '~15%', 'Price below 72 EMA = +1 (pullback zone) · Above = −1'],
-                  ['200-Day SMA Position', '~15%', 'Price below 200 SMA = +1 (long-term support) · Above = −1'],
+                  ['200-Day SMA Distance', '~30%', 'Below 200 SMA = +1.5 · 0–10% above = neutral · 10–20% above = −0.5 · >20% above = −1.5'],
                 ].map(([sig, wt, logic]) => (
                   <tr key={sig} style={{ borderBottom: `1px solid ${theme.line}` }}>
                     <td style={{ padding: '10px 10px', fontWeight: 600, color: theme.text, fontSize: 13 }}>{sig}</td>
@@ -131,7 +131,7 @@ export default function Methodology() {
                 ))}
               </tbody>
             </table>
-            <p style={{ marginTop: 16 }}>The MA signals use a <b>contrarian logic</b>: when price is <em>below</em> a moving average, the asset is in a pullback from its average — historically a more attractive DCA entry point, similar to how RSI rewards buying during oversold conditions.</p>
+            <p style={{ marginTop: 16 }}>The 200-Day SMA distance uses <b>graduated scoring</b>: the further below the long-term baseline, the stronger the DCA signal. Price above the baseline is penalised proportionally — slightly extended (+10–20%) costs 0.5 points; significantly extended (&gt;20%) costs 1.5 points. This is the highest-weight single signal in the model.</p>
 
             <div style={{ marginTop: 20 }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, color: theme.text, marginBottom: 12 }}>Ian Dunlap's 3-Price Entry System</h3>

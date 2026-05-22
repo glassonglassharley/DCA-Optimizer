@@ -19,7 +19,7 @@ export const RATING_STYLES = {
 
 export const RATING_LABELS = {
   'STRONG BUY':  'High',
-  'BUY':         'Favorable Setup',
+  'BUY':         'Favorable',
   'HOLD':        'Neutral',
   'WAIT':        'Wait Zone',
   'SELL':        'Sell Signal',
@@ -119,12 +119,14 @@ export function shade(hex, pct) {
 }
 
 export function fmtPrice(p) {
-  if (p == null) return '—';
+  if (p == null || p <= 0) return '—';
   if (p >= 1000) return p.toLocaleString('en-US', { maximumFractionDigits: 0 });
-  return p.toFixed(2);
+  if (p >= 1) return p.toFixed(2);
+  if (p >= 0.01) return p.toFixed(3);
+  return p.toFixed(6);
 }
 
-export function computeScore(rsi, fg, fpe, rating, isCrypto = false, aboveMa72 = null, aboveMa200 = null) {
+export function computeScore(rsi, fg, fpe, rating, isCrypto = false, aboveMa72 = null, ma200dist = null) {
   let score = 5;
   if (rsi != null) {
     if (rsi < 30) score += 2;
@@ -143,8 +145,14 @@ export function computeScore(rsi, fg, fpe, rating, isCrypto = false, aboveMa72 =
   if (rating === 'STRONG BUY') score += 1;
   else if (rating === 'BUY') score += 0.5;
   else if (rating === 'SELL' || rating === 'STRONG SELL') score -= 1;
-  // MA signals: below MA = contrarian DCA entry (+1), above = extended (-1)
+  // 72 EMA: contrarian — below = pullback zone (+1), above = extended (-1)
   if (aboveMa72 != null) score += aboveMa72 ? -1 : 1;
-  if (aboveMa200 != null) score += aboveMa200 ? -1 : 1;
+  // 200 SMA distance: graduated scoring
+  if (ma200dist != null) {
+    if (ma200dist < 0)        score += 1.5;  // below baseline — strong DCA zone
+    else if (ma200dist > 20)  score -= 1.5;  // significantly extended
+    else if (ma200dist > 10)  score -= 0.5;  // slightly extended
+    // 0–10%: neutral, no adjustment
+  }
   return Math.max(0, Math.min(10, Math.round(score * 10) / 10));
 }
