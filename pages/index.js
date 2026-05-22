@@ -685,8 +685,8 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
             </button>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 58px 38px 30px 26px 26px 1fr', gap: 4, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
-          {['ASSET', 'BUY RATING', 'SCORE', 'RSI', '72MA', '200MA', 'PRICE / DATA'].map((h, i) => (
+        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 58px 38px 30px 36px 1fr', gap: 4, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
+          {['ASSET', 'BUY RATING', 'SCORE', 'RSI', 'PE', 'PRICE'].map((h, i) => (
             <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
           ))}
         </div>
@@ -699,8 +699,6 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
         <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.6, paddingTop: 12, borderTop: '1px solid #1e2433', margin: '0 16px 16px' }}>
           <div>* RSI — Relative Strength Index (14-day). ≤30 oversold · ≥70 overbought</div>
           <div>* PE — Forward Price-to-Earnings ratio. &lt;15 undervalued · &gt;35 premium. Stocks only.</div>
-          <div>* 72MA — 72-day Exponential Moving Average. ▲ price above · ▼ price below. (Ian Dunlap)</div>
-          <div>* 200MA — 200-day Simple Moving Average. ▲ price above · ▼ price below. Long-term trend.</div>
         </div>
       </Card>
     </div>
@@ -711,7 +709,7 @@ function HoldingRow({ h, theme, last, onClick }) {
   const c = getColor(h.sym);
   return (
     <div onClick={onClick} style={{
-      display: 'grid', gridTemplateColumns: '1.6fr 58px 38px 30px 26px 26px 1fr', gap: 4, alignItems: 'center',
+      display: 'grid', gridTemplateColumns: '1.6fr 58px 38px 30px 36px 1fr', gap: 4, alignItems: 'center',
       padding: '11px 14px', borderBottom: last ? 'none' : `1px solid ${theme.line}`,
       cursor: 'pointer',
     }}>
@@ -728,8 +726,9 @@ function HoldingRow({ h, theme, last, onClick }) {
       <div><RatingPill rating={h.displayRating || 'HOLD'}/></div>
       <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: c }}>{h.score}</div>
       <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: h.rsi == null ? theme.text3 : h.rsi < 30 ? '#10B981' : h.rsi > 70 ? '#EF4444' : theme.text }}>{h.rsi ?? '—'}</div>
-      <div style={{ textAlign: 'right' }}><MAPill above={h.aboveMa72}/></div>
-      <div style={{ textAlign: 'right' }}><MAPill above={h.aboveMa200}/></div>
+      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: (h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.fpe == null) ? theme.text3 : h.fpe < 15 ? '#10B981' : h.fpe <= 35 ? '#F59E0B' : '#EF4444' }}>
+        {(h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.fpe == null) ? '—' : parseFloat(h.fpe).toFixed(1)}
+      </div>
       <div style={{ textAlign: 'right' }}>
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: theme.text }}>
           {h.price ? `$${fmtPrice(h.price)}` : 'N/A'}
@@ -739,9 +738,6 @@ function HoldingRow({ h, theme, last, onClick }) {
             {h.chg >= 0 ? '▲' : '▼'} {Math.abs(h.chg).toFixed(2)}%
           </div>
         )}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 2, flexWrap: 'wrap' }}>
-          <FPEChip fpe={h.fpe} tag={h.tag}/>
-        </div>
       </div>
     </div>
   );
@@ -852,6 +848,12 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
           value={h.fpe != null ? parseFloat(h.fpe).toFixed(1) : '—'}
           tint={h.fpe == null ? theme.text3 : (h.fpe > 40 ? '#EF4444' : h.fpe > 25 ? '#F59E0B' : '#10B981')}
           maxValue={60} bar={h.fpe != null} style={{ gridColumn: 'span 2' }}/>
+        <Stat theme={theme} label="72-Day EMA"
+          value={h.ma72 != null ? `$${fmtPrice(h.ma72)}` : '—'}
+          tint={h.aboveMa72 == null ? theme.text3 : h.aboveMa72 ? '#10B981' : '#F59E0B'}/>
+        <Stat theme={theme} label="200-Day SMA"
+          value={h.ma200 != null ? `$${fmtPrice(h.ma200)}` : '—'}
+          tint={h.aboveMa200 == null ? theme.text3 : h.aboveMa200 ? '#10B981' : '#F59E0B'}/>
       </div>
 
       {h.fpe != null && (
@@ -1696,8 +1698,8 @@ function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgInd
       <div style={{ flex: '0 0 60%', overflowY: 'auto', borderRight: `1px solid rgba(255,255,255,.06)`, padding: '24px 20px 24px 28px' }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: theme.text3, letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 14 }}>Holdings</div>
         <Card theme={theme} style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 58px 38px 30px 26px 26px 1fr', gap: 4, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}` }}>
-            {['ASSET', 'BUY RATING', 'SCORE', 'RSI', '72MA', '200MA', 'PRICE / DATA'].map((h, i) => (
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 58px 38px 30px 36px 1fr', gap: 4, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}` }}>
+            {['ASSET', 'BUY RATING', 'SCORE', 'RSI', 'PE', 'PRICE'].map((h, i) => (
               <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
             ))}
           </div>
