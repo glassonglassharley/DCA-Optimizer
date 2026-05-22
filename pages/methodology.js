@@ -105,6 +105,62 @@ export default function Methodology() {
             </ul>
           </Section>
 
+          <Section title="Scoring Framework — Inspired by Ian Dunlap's Technical Analysis" theme={theme}>
+            <p>The composite score weights five independent signals. Each signal is a contrarian indicator — it rewards conditions that historically create attractive DCA entry points, not conditions that feel good to buy.</p>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 14 }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${theme.line2}` }}>
+                  <th style={{ textAlign: 'left', padding: '6px 10px', color: theme.text3, fontWeight: 600, fontSize: 11, letterSpacing: '.06em' }}>SIGNAL</th>
+                  <th style={{ textAlign: 'left', padding: '6px 10px', color: theme.text3, fontWeight: 600, fontSize: 11, letterSpacing: '.06em' }}>WEIGHT</th>
+                  <th style={{ textAlign: 'left', padding: '6px 10px', color: theme.text3, fontWeight: 600, fontSize: 11, letterSpacing: '.06em' }}>LOGIC</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['RSI (14-day)', '~30%', 'RSI < 30 = +2 · RSI 30–50 = +1 · RSI 60–70 = −1 · RSI > 70 = −2'],
+                  ['Fear & Greed Index', '~20%', 'F&G < 30 (fear) = +1 · F&G > 70 (greed) = −1'],
+                  ['Forward P/E (stocks only)', '~20%', 'F/PE < 20 = +1 · F/PE > 40 = −1 · Skip for crypto/ETFs'],
+                  ['72-Day EMA Position', '~15%', 'Price below 72 EMA = +1 (pullback zone) · Above = −1'],
+                  ['200-Day SMA Position', '~15%', 'Price below 200 SMA = +1 (long-term support) · Above = −1'],
+                ].map(([sig, wt, logic]) => (
+                  <tr key={sig} style={{ borderBottom: `1px solid ${theme.line}` }}>
+                    <td style={{ padding: '10px 10px', fontWeight: 600, color: theme.text, fontSize: 13 }}>{sig}</td>
+                    <td style={{ padding: '10px 10px', color: theme.brand, fontFamily: 'var(--font-mono)', fontSize: 12, whiteSpace: 'nowrap' }}>{wt}</td>
+                    <td style={{ padding: '10px 10px', color: theme.text2, fontSize: 12 }}>{logic}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p style={{ marginTop: 16 }}>The MA signals use a <b>contrarian logic</b>: when price is <em>below</em> a moving average, the asset is in a pullback from its average — historically a more attractive DCA entry point, similar to how RSI rewards buying during oversold conditions.</p>
+
+            <div style={{ marginTop: 20 }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: theme.text, marginBottom: 12 }}>Ian Dunlap's 3-Price Entry System</h3>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${theme.line2}` }}>
+                    <th style={{ textAlign: 'left', padding: '6px 10px', color: theme.text3, fontWeight: 600, fontSize: 11, letterSpacing: '.06em' }}>SCORE</th>
+                    <th style={{ textAlign: 'left', padding: '6px 10px', color: theme.text3, fontWeight: 600, fontSize: 11, letterSpacing: '.06em' }}>LABEL</th>
+                    <th style={{ textAlign: 'left', padding: '6px 10px', color: theme.text3, fontWeight: 600, fontSize: 11, letterSpacing: '.06em' }}>IAN DUNLAP EQUIVALENT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ['8–10', 'High DCA Score', 'Load the Boat — all signals aligned, maximum conviction entry'],
+                    ['6–7.9', 'Favorable Setup', 'Swing Entry — near support, good risk/reward'],
+                    ['4–5.9', 'Neutral', 'Quick Entry — mixed signals, proceed with normal DCA schedule'],
+                    ['0–3.9', 'Wait Zone', 'No entry — signals unfavorable, defer this buy cycle'],
+                  ].map(([score, label, equiv]) => (
+                    <tr key={score} style={{ borderBottom: `1px solid ${theme.line}` }}>
+                      <td style={{ padding: '10px 10px', fontFamily: 'var(--font-mono)', color: theme.brand, fontSize: 13 }}>{score}</td>
+                      <td style={{ padding: '10px 10px', fontWeight: 700, color: theme.text }}>{label}</td>
+                      <td style={{ padding: '10px 10px', color: theme.text2, fontSize: 12 }}>{equiv}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Section>
+
           <Section title="Data sources" theme={theme}>
             <p><b>Price &amp; RSI:</b> Yahoo Finance (delayed ~15 min for US equities, real-time for crypto).</p>
             <p style={{ marginTop: 8 }}><b>Fear &amp; Greed:</b> Alternative.me API (updated daily).</p>

@@ -90,6 +90,36 @@ function FGPill({ v }) {
   );
 }
 
+function MAPill({ above }) {
+  if (above == null) return <span style={{ color: '#4B5478', fontSize: 10 }}>—</span>;
+  return (
+    <span style={{
+      fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4,
+      color: above ? '#10B981' : '#EF4444',
+      background: above ? 'rgba(16,185,129,.14)' : 'rgba(239,68,68,.14)',
+      border: `1px solid ${above ? 'rgba(16,185,129,.3)' : 'rgba(239,68,68,.3)'}`,
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22,
+    }}>
+      {above ? '▲' : '▼'}
+    </span>
+  );
+}
+
+function FPEChip({ fpe, tag }) {
+  if (fpe == null || tag === 'CRYPTO' || tag === 'HEDGE') return null;
+  const val = parseFloat(fpe);
+  const color = val < 15 ? '#10B981' : val <= 35 ? '#F59E0B' : '#EF4444';
+  return (
+    <span style={{
+      fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4,
+      color, background: color + '20', border: `1px solid ${color}40`,
+      fontFamily: 'var(--font-mono)',
+    }}>
+      PE {val.toFixed(1)}
+    </span>
+  );
+}
+
 function ScoresChart({ data, theme, onPick, focused, chartStyle = 'bars' }) {
   const max = 10;
   const [mounted, setMounted] = useState(false);
@@ -642,9 +672,9 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
             </button>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 60px 64px 50px 38px 1fr', gap: 8, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
-          {['ASSET', 'TAG', 'RATING', 'SCORE', 'F&G', 'PRICE'].map((h, i) => (
-            <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 3 ? 'right' : 'left' }}>{h}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 62px 44px 32px 30px 30px 1fr', gap: 6, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
+          {['ASSET', 'RATING', 'SCORE', 'F&G', '72MA', '200MA', 'PRICE'].map((h, i) => (
+            <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
           ))}
         </div>
         {loading && holdings.length === 0 && (
@@ -662,23 +692,30 @@ function HoldingRow({ h, theme, last, onClick }) {
   const c = getColor(h.sym);
   return (
     <div onClick={onClick} style={{
-      display: 'grid', gridTemplateColumns: '1.6fr 60px 64px 50px 38px 1fr', gap: 8, alignItems: 'center',
+      display: 'grid', gridTemplateColumns: '1.6fr 62px 44px 32px 30px 30px 1fr', gap: 6, alignItems: 'center',
       padding: '11px 14px', borderBottom: last ? 'none' : `1px solid ${theme.line}`,
       cursor: 'pointer',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-        <TickerDot sym={h.sym} theme={theme} size={28}/>
-        <div style={{ minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <TickerDot sym={h.sym} theme={theme} size={26}/>
+        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: theme.text, fontFamily: 'var(--font-mono)', letterSpacing: '-.01em' }}>{h.sym}</div>
-          <div style={{ fontSize: 10.5, color: theme.text3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name || h.sym}</div>
+          <div style={{ fontSize: 10, color: theme.text3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name || h.sym}</div>
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            <TagPill tag={h.tag || 'STOCK'} theme={theme}/>
+            <FPEChip fpe={h.fpe} tag={h.tag}/>
+          </div>
         </div>
       </div>
-      <div><TagPill tag={h.tag || 'STOCK'} theme={theme}/></div>
       <div><RatingPill rating={h.rating || 'HOLD'}/></div>
       <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 700, color: c }}>{h.score}</div>
       <div style={{ textAlign: 'right' }}><FGPill v={h.fg}/></div>
+      <div style={{ textAlign: 'right' }}><MAPill above={h.aboveMa72}/></div>
+      <div style={{ textAlign: 'right' }}><MAPill above={h.aboveMa200}/></div>
       <div style={{ textAlign: 'right' }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: theme.text }}>${fmtPrice(h.price)}</div>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: theme.text }}>
+          {h.price ? `$${fmtPrice(h.price)}` : 'N/A'}
+        </div>
         {h.chg != null && (
           <div style={{ fontSize: 10, color: h.chg >= 0 ? '#10B981' : '#EF4444', fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2 }}>
             {h.chg >= 0 ? '▲' : '▼'} {Math.abs(h.chg).toFixed(2)}%
@@ -1577,9 +1614,9 @@ function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgInd
       <div style={{ flex: '0 0 60%', overflowY: 'auto', borderRight: `1px solid rgba(255,255,255,.06)`, padding: '24px 20px 24px 28px' }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: theme.text3, letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 14 }}>Holdings</div>
         <Card theme={theme} style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 60px 64px 50px 38px 1fr', gap: 8, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}` }}>
-            {['ASSET', 'TAG', 'RATING', 'SCORE', 'F&G', 'PRICE'].map((h, i) => (
-              <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 3 ? 'right' : 'left' }}>{h}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 62px 44px 32px 30px 30px 1fr', gap: 6, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}` }}>
+            {['ASSET', 'RATING', 'SCORE', 'F&G', '72MA', '200MA', 'PRICE'].map((h, i) => (
+              <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
             ))}
           </div>
           {loading && holdings.length === 0 && (
@@ -1654,7 +1691,7 @@ export default function Home() {
   const [user, setUser] = useState(null);
   const [selectedTickers, setSelectedTickers] = useState([]);
   const [metricsMap, setMetricsMap] = useState({});
-  const [fgIndex, setFgIndex] = useState(null);
+  const [fgIndex, setFgIndex] = useState(50);
   const [loading, setLoading] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState(null);
   const didMount = useRef(false);
@@ -1723,7 +1760,7 @@ export default function Home() {
 
   // Fetch Fear & Greed index once
   useEffect(() => {
-    fetch('/api/feargreed').then(r => r.json()).then(d => setFgIndex(d.value)).catch(() => {});
+    fetch('/api/feargreed').then(r => r.json()).then(d => { if (d.value != null) setFgIndex(d.value); }).catch(() => {});
   }, []);
 
   // Fetch metrics for selected tickers
@@ -1763,7 +1800,9 @@ export default function Home() {
       const fpe = m.forwardPE ? parseFloat(m.forwardPE) : null;
       const tag = tagFor(sym);
       const isCrypto = tag === 'CRYPTO';
-      const score = computeScore(rsi, fgIndex, isCrypto ? null : fpe, rating, isCrypto);
+      const aboveMa72 = m.aboveMa72 ?? null;
+      const aboveMa200 = m.aboveMa200 ?? null;
+      const score = computeScore(rsi, fgIndex, isCrypto ? null : fpe, rating, isCrypto, aboveMa72, aboveMa200);
       return {
         sym,
         name: m.name || sym,
@@ -1775,6 +1814,10 @@ export default function Home() {
         rating,
         score,
         tag,
+        ma72: m.ma72 || null,
+        ma200: m.ma200 || null,
+        aboveMa72,
+        aboveMa200,
         why: null,
       };
     }).sort((a, b) => b.score - a.score);

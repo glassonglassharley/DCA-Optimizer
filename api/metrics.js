@@ -24,6 +24,23 @@ function calcRSI(closes, period = 14) {
     return Math.round(100 - 100 / (1 + avgGain / avgLoss));
 }
 
+function calcEMA72(closes) {
+  const valid = (closes || []).filter(c => c != null && !isNaN(c));
+  if (valid.length < 72) return null;
+  const k = 2 / (72 + 1);
+  let ema = valid.slice(0, 72).reduce((s, v) => s + v, 0) / 72;
+  for (let i = 72; i < valid.length; i++) {
+    ema = valid[i] * k + ema * (1 - k);
+  }
+  return parseFloat(ema.toFixed(4));
+}
+
+function calcSMA200(closes) {
+  const valid = (closes || []).filter(c => c != null && !isNaN(c));
+  if (valid.length < 200) return null;
+  return parseFloat((valid.slice(-200).reduce((s, v) => s + v, 0) / 200).toFixed(4));
+}
+
 // Fetch a Yahoo Finance crumb — required for quoteSummary v10 since 2024
 async function getYahooCrumb() {
     try {
@@ -55,7 +72,7 @@ export default async function handler(req, res) {
 
     try {
         const endDate = Math.floor(Date.now() / 1000);
-        const startDate = endDate - 45 * 24 * 60 * 60;
+        const startDate = endDate - 210 * 24 * 60 * 60;
 
         const baseHeaders = { 'User-Agent': UA, 'Accept': '*/*', 'Accept-Language': 'en-US,en;q=0.9' };
 
@@ -79,6 +96,15 @@ export default async function handler(req, res) {
                 if (currentPrice && prev) regularMarketChangePercent = ((currentPrice - prev) / prev) * 100;
             }
         } catch (_) {}
+
+        let ma72 = null, ma200 = null;
+        try {
+          const closes = chartData?.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+          ma72 = calcEMA72(closes);
+          ma200 = calcSMA200(closes);
+        } catch (_) {}
+        const aboveMa72 = (ma72 != null && currentPrice != null) ? currentPrice > ma72 : null;
+        const aboveMa200 = (ma200 != null && currentPrice != null) ? currentPrice > ma200 : null;
 
         // If chart returned no price, symbol is invalid
         if (!currentPrice) {
@@ -163,6 +189,10 @@ export default async function handler(req, res) {
             distFromHigh,
             distFromLow,
             rsi,
+            ma72: ma72 ? parseFloat(ma72.toFixed(2)) : null,
+            ma200: ma200 ? parseFloat(ma200.toFixed(2)) : null,
+            aboveMa72,
+            aboveMa200,
             rating,
             ratingScore,
             analysts: { strongBuy, buy, hold, sell, strongSell, total: totalAnalysts },

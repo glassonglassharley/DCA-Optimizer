@@ -128,9 +128,41 @@ const TERMS = [
     inApp: 'Mean reversion is the intellectual foundation of RSI-based DCA timing. When a holding\'s RSI is extreme (below 10 or 30), the app flags it as a statistically depressed entry — not because a recovery is guaranteed, but because you\'re buying at a price that has historically reverted. Combined with a sound DCA schedule, this asymmetry is the edge.',
     visual: null,
   },
+  {
+    key: 'ema72',
+    term: '72-Day EMA',
+    cat: 'Moving Averages',
+    def: 'A 72-day exponential moving average gives more weight to recent prices and is more responsive than a simple moving average. Ian Dunlap uses the 72 EMA as a key short-to-medium term trend signal to identify whether price is in a healthy pullback zone or has broken below a meaningful support level.',
+    inApp: 'Each holding shows a green chip (▲) when price is above the 72 EMA — indicating a bullish near-term trend. Red chip (▼) means price is below the 72 EMA. When price falls below the 72 EMA, DCA Tracker adds +1 to the composite score as a contrarian signal — the pullback creates a more attractive accumulation zone.',
+    visual: null,
+  },
+  {
+    key: 'sma200',
+    term: '200-Day SMA',
+    cat: 'Moving Averages',
+    def: 'The 200-day simple moving average is the most widely watched long-term trend indicator on Wall Street and in crypto markets. Institutions, funds, and algorithmic systems treat it as the dividing line between a long-term uptrend (above) and downtrend (below). It moves slowly and rarely gives false signals.',
+    inApp: 'Each holding shows a green chip (▲) when price is above the 200 SMA and red (▼) when below. When price dips below the 200 SMA, DCA Tracker adds +1 to the composite score — historically these moments have been strong long-term DCA entry zones, even if scary in the short term. Requires 200 days of daily price history from Yahoo Finance.',
+    visual: null,
+  },
+  {
+    key: 'load-the-boat',
+    term: 'Load the Boat',
+    cat: 'Signal',
+    def: "Ian Dunlap's term for conditions where an investor should deploy maximum capital. All signals align simultaneously: price is below key moving averages, RSI is oversold, and market sentiment (Fear & Greed) is in fear territory. These rare moments represent the convergence of technical and sentiment-based buy signals.",
+    inApp: 'In DCA Tracker this corresponds to a High DCA Score of 8–10: RSI below 30 (+2), Fear & Greed below 30 (+1), price below 72 EMA (+1), price below 200 SMA (+1). The score reflects how many signals are aligned — a 10/10 means all five inputs are signaling a contrarian entry. Not a guarantee of returns. Educational use only.',
+    visual: null,
+  },
+  {
+    key: '3-price-entry',
+    term: '3-Price Entry System',
+    cat: 'Concept',
+    def: "Ian Dunlap's framework for identifying three strategic buy prices for any given asset: (1) a Quick Entry price — current conditions are mixed but acceptable; (2) a Swing Entry price — price is near a meaningful support level with better risk/reward; (3) a Load the Boat price — maximum conviction entry where all signals converge.",
+    inApp: 'Maps directly to DCA Tracker score labels: Neutral (score 4–5.9) = Quick Entry; Favorable Setup (score 6–7.9) = Swing Entry; High DCA Score (8–10) = Load the Boat. Wait Zone (0–3.9) means none of these conditions are met — consider deferring your buy to the next scheduled date. Educational data only, not advice.',
+    visual: null,
+  },
 ];
 
-const CATS = ['All', 'Indicator', 'Signal', 'Rule', 'Concept'];
+const CATS = ['All', 'Indicator', 'Signal', 'Rule', 'Concept', 'Moving Averages'];
 
 // ─── Visual scale components ──────────────────────────────────────────────────
 
@@ -231,6 +263,7 @@ const CAT_COLORS = {
   Signal:    '#A78BFA',
   Rule:      '#F59E0B',
   Concept:   '#34D399',
+  'Moving Averages': '#F97316',
 };
 
 function TermCard({ t, isOpen, onToggle }) {
@@ -388,7 +421,7 @@ export default function GlossaryPage() {
 
           {/* Footer */}
           <div style={{ margin: '24px 20px 0', padding: '12px 14px', borderRadius: 12, background: theme.bg2, border: `1px dashed ${theme.line2}`, fontSize: 11, color: theme.text3, lineHeight: 1.5 }}>
-            <b style={{ color: theme.text2 }}>Data sources.</b> RSI and price data from Yahoo Finance. Fear &amp; Greed Index from CNN/Alternative.me. Forward P/E from analyst consensus via Yahoo Finance. Composite Score formula is open — no black box.{' '}
+            <b style={{ color: theme.text2 }}>Data sources.</b> RSI and price data from Yahoo Finance. Fear &amp; Greed Index from CNN/Alternative.me. Forward P/E from analyst consensus via Yahoo Finance. Moving average data (72 EMA, 200 SMA) calculated server-side from Yahoo Finance price history. Composite Score formula is open — no black box.{' '}
             <b style={{ color: theme.text2 }}>Nothing here is financial advice.</b>
           </div>
 

@@ -124,7 +124,7 @@ export function fmtPrice(p) {
   return p.toFixed(2);
 }
 
-export function computeScore(rsi, fg, fpe, rating, isCrypto = false) {
+export function computeScore(rsi, fg, fpe, rating, isCrypto = false, aboveMa72 = null, aboveMa200 = null) {
   let score = 5;
   if (rsi != null) {
     if (rsi < 30) score += 2;
@@ -143,5 +143,8 @@ export function computeScore(rsi, fg, fpe, rating, isCrypto = false) {
   if (rating === 'STRONG BUY') score += 1;
   else if (rating === 'BUY') score += 0.5;
   else if (rating === 'SELL' || rating === 'STRONG SELL') score -= 1;
+  // MA signals: below MA = contrarian DCA entry (+1), above = extended (-1)
+  if (aboveMa72 != null) score += aboveMa72 ? -1 : 1;
+  if (aboveMa200 != null) score += aboveMa200 ? -1 : 1;
   return Math.max(0, Math.min(10, Math.round(score * 10) / 10));
 }
