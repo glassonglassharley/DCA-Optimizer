@@ -703,7 +703,6 @@ function HoldingRow({ h, theme, last, onClick }) {
           <div style={{ fontSize: 10, color: theme.text3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name || h.sym}</div>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
             <TagPill tag={h.tag || 'STOCK'} theme={theme}/>
-            <FPEChip fpe={h.fpe} tag={h.tag}/>
           </div>
         </div>
       </div>
@@ -719,6 +718,11 @@ function HoldingRow({ h, theme, last, onClick }) {
         {h.chg != null && (
           <div style={{ fontSize: 10, color: h.chg >= 0 ? '#10B981' : '#EF4444', fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2 }}>
             {h.chg >= 0 ? '▲' : '▼'} {Math.abs(h.chg).toFixed(2)}%
+          </div>
+        )}
+        {h.fpe != null && h.tag !== 'CRYPTO' && h.tag !== 'HEDGE' && (
+          <div style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: h.fpe < 15 ? '#10B981' : h.fpe <= 35 ? '#F59E0B' : '#EF4444', textAlign: 'right', marginTop: 1 }}>
+            F/PE {parseFloat(h.fpe).toFixed(1)}
           </div>
         )}
       </div>
