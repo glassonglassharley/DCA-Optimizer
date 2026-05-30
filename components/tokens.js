@@ -21,7 +21,7 @@ export const RATING_LABELS = {
   'STRONG BUY':  'High',
   'BUY':         'Favorable',
   'HOLD':        'Neutral',
-  'WAIT':        'Wait Zone',
+  'WAIT':        'Wait',
   'SELL':        'Sell Signal',
   'STRONG SELL': 'Strong Sell',
   'AVOID':       'Avoid',
@@ -71,7 +71,7 @@ export const GLOSSARY = [
     example:'XLV is CORE — the largest, longest-held positions in your portfolio.' },
   { key:'RATINGS', term:'Score Labels', cat:'Internal',
     def:'Label the DCA composite score suggests. These reflect signals only — your DCA schedule overrides any label. Not financial advice.',
-    example:'"Wait Zone" means metrics are unfavorable today; skip this buy and DCA into something else.' },
+    example:'"Wait" means metrics are unfavorable today; skip this buy and DCA into something else.' },
   { key:'MA200', term:'200-day Moving Average', cat:'Technical',
     def:'Average closing price over the last 200 trading days. Price above = uptrend, below = downtrend.',
     example:'QQQ is currently 11% above its 200-day MA — extended.' },
@@ -120,10 +120,10 @@ export function shade(hex, pct) {
 
 export function fmtPrice(p) {
   if (p == null || p <= 0) return '—';
+  if (p < 0.01) return '—';
   if (p >= 1000) return p.toLocaleString('en-US', { maximumFractionDigits: 0 });
   if (p >= 1) return p.toFixed(2);
-  if (p >= 0.01) return p.toFixed(3);
-  return p.toFixed(6);
+  return p.toFixed(3);
 }
 
 export function computeScore(rsi, fg, fpe, rating, isCrypto = false, aboveMa72 = null, ma200dist = null) {

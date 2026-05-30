@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import { Ic } from '../components/icons';
 import {
@@ -312,7 +312,7 @@ function StaxHeader({ theme, onAdd, onGlossary, user, fgIndex }) {
           {Ic.logo(20, '#fff')}
         </div>
         <div>
-          <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.02em', color: theme.text }}>DCA Tracker</div>
+          <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.02em', color: theme.text }}>DCA Anchor</div>
           <div style={{ fontSize: 9.5, color: theme.text3, marginTop: -1, letterSpacing: '.06em' }}>{user || 'GUEST'}</div>
         </div>
       </div>
@@ -340,12 +340,13 @@ function StaxHeader({ theme, onAdd, onGlossary, user, fgIndex }) {
         <IconBtn theme={theme} onClick={onGlossary}>
           <span style={{ fontSize: 14, fontWeight: 700, color: theme.text2, fontFamily: 'var(--font-mono)' }}>?</span>
         </IconBtn>
-        <button onClick={onAdd} style={{
+        <button type="button" onClick={onAdd} style={{
           height: 34, padding: '0 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
           background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`,
           color: '#fff', fontSize: 12.5, fontWeight: 600,
           display: 'flex', alignItems: 'center', gap: 6,
           boxShadow: `0 6px 16px ${theme.brand}55, 0 1px 0 rgba(255,255,255,.3) inset`,
+          touchAction: 'manipulation',
         }}>{Ic.plus(14, '#fff')} Add</button>
       </div>
     </div>
@@ -365,10 +366,11 @@ function IconBtn({ theme, children, onClick, badge }) {
   );
 }
 
-function BottomNav({ theme, tab, setTab, onAdd }) {
+function BottomNav({ theme, tab, onTab, onAdd }) {
   const tabs = [
     { id: 'home',     label: 'Home',     icon: Ic.home },
     { id: 'calc',     label: 'Calc',     icon: Ic.calc },
+    { id: 'compare',  label: 'Compare',  icon: Ic.compare, href: '/compare' },
     { id: 'glossary', label: 'Glossary', icon: Ic.book },
   ];
   return (
@@ -384,27 +386,36 @@ function BottomNav({ theme, tab, setTab, onAdd }) {
       boxShadow: '0 12px 30px rgba(0,0,0,.35), 0 1px 0 rgba(255,255,255,.1) inset',
       display: 'flex', alignItems: 'center',
     }}>
-      {tabs.slice(0, 2).map(t => <NavBtn key={t.id} t={t} tab={tab} setTab={setTab} theme={theme}/>)}
-      <button onClick={onAdd} style={{
+      {tabs.slice(0, 2).map(t => <NavBtn key={t.id} t={t} tab={tab} onTab={onTab} theme={theme}/>)}
+      <button type="button" aria-label="Add ticker" onClick={onAdd} style={{
         width: 46, height: 46, borderRadius: 14, margin: '0 2px',
         background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`,
         border: 'none', color: '#fff', cursor: 'pointer', flex: '0 0 auto',
         boxShadow: `0 6px 16px ${theme.brand}88, 0 1px 0 rgba(255,255,255,.3) inset`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', touchAction: 'manipulation',
       }}>{Ic.plus(20, '#fff')}</button>
-      {tabs.slice(2).map(t => <NavBtn key={t.id} t={t} tab={tab} setTab={setTab} theme={theme}/>)}
+      {tabs.slice(2).map(t => <NavBtn key={t.id} t={t} tab={tab} onTab={onTab} theme={theme}/>)}
     </div>
   );
 }
 
-function NavBtn({ t, tab, setTab, theme }) {
+function NavBtn({ t, tab, onTab, theme }) {
   const on = tab === t.id;
+  const style = {
+    flex: 1, height: 48, borderRadius: 14, border: 'none', background: 'transparent', cursor: 'pointer',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
+    color: on ? theme.brand : theme.text3, textDecoration: 'none', touchAction: 'manipulation',
+  };
+  if (t.href) {
+    return (
+      <a href={t.href} style={style}>
+        {t.icon(20, theme.text3)}
+        <span style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '.02em' }}>{t.label}</span>
+      </a>
+    );
+  }
   return (
-    <button onClick={() => setTab(t.id)} style={{
-      flex: 1, height: 48, borderRadius: 14, border: 'none', background: 'transparent', cursor: 'pointer',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
-      color: on ? theme.brand : theme.text3,
-    }}>
+    <button type="button" onClick={() => onTab(t.id)} style={style}>
       {t.icon(20, on ? theme.brand : theme.text3)}
       <span style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '.02em' }}>{t.label}</span>
     </button>
@@ -421,7 +432,7 @@ function NotifBar({ theme, holdings }) {
       if (h.rsi != null && h.rsi > 70) msgs.push({ c: '#EF4444', msg: `${h.sym} RSI ${h.rsi} — overbought, consider waiting` });
       if (h.displayRating === 'BUY' || h.displayRating === 'STRONG BUY') msgs.push({ c: '#10B981', msg: `${h.sym} — ${RATING_LABELS[h.displayRating]} signal today` });
     });
-    if (!msgs.length) msgs.push({ c: theme.brand, msg: 'DCA Tracker — transparent analytics, not advice' });
+    if (!msgs.length) msgs.push({ c: theme.brand, msg: 'DCA Anchor — transparent analytics, not advice' });
     return msgs.slice(0, 4);
   }, [holdings]);
 
@@ -506,7 +517,7 @@ function SignIn({ theme, onEnter }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: `0 14px 32px ${theme.brand}66, 0 1px 0 rgba(255,255,255,.3) inset`,
         }}>{Ic.logo(34, '#fff')}</div>
-        <div style={{ fontSize: 26, fontWeight: 700, color: theme.text, letterSpacing: '-.03em', marginTop: 14 }}>DCA Tracker</div>
+        <div style={{ fontSize: 26, fontWeight: 700, color: theme.text, letterSpacing: '-.03em', marginTop: 14 }}>DCA Anchor</div>
         <div style={{ fontSize: 12.5, color: theme.text2, marginTop: 4, textAlign: 'center', maxWidth: 260, lineHeight: 1.45 }}>
           Pick a username — your watchlist syncs to any device.
         </div>
@@ -578,9 +589,9 @@ function Dashboard({ theme, navigate, user, holdings, loading, onRefresh, lastRe
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <StaxHeader theme={theme} user={user} fgIndex={fgIndex} onAdd={() => navigate('add')} onGlossary={() => { window.location.href = '/glossary'; }}/>
+      <StaxHeader theme={theme} user={user} fgIndex={fgIndex} onAdd={() => navigate('add')} onGlossary={() => navigate('glossary')}/>
       <NotifBar theme={theme} holdings={holdings}/>
-      <TransparencyBar theme={theme} onLearn={() => { window.location.href = '/glossary'; }}/>
+      <TransparencyBar theme={theme} onLearn={() => navigate('glossary')}/>
 
       {top && (
         <div style={{ padding: '0 16px' }}>
@@ -742,7 +753,7 @@ function HoldingRow({ h, theme, last, onClick }) {
       </div>
       <div style={{ textAlign: 'right', overflow: 'hidden' }}>
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: theme.text }}>
-          {h.price != null && h.price > 0 ? `$${fmtPrice(h.price)}` : '—'}
+          {h.price != null && h.price >= 0.01 ? `$${fmtPrice(h.price)}` : '—'}
         </div>
         {h.chg != null && (
           <div style={{ fontSize: 10, color: h.chg >= 0 ? '#10B981' : '#EF4444', fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2 }}>
@@ -835,7 +846,7 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
         <Card theme={theme} tint={c}>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, marginBottom: 8 }}>
             <div style={{ fontSize: 32, fontWeight: 700, color: theme.text, fontFamily: 'var(--font-mono)', letterSpacing: '-.03em', lineHeight: 1 }}>
-              {h.price != null ? `$${fmtPrice(h.price)}` : '—'}
+              {h.price != null && h.price >= 0.01 ? `$${fmtPrice(h.price)}` : '—'}
             </div>
             {h.chg != null && (
               <div style={{ fontSize: 13, color: h.chg >= 0 ? '#10B981' : '#EF4444', fontFamily: 'var(--font-mono)', fontWeight: 600, marginBottom: 3 }}>
@@ -860,10 +871,10 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
           tint={(h.fpe == null || h.sym === 'MSTR') ? theme.text3 : (h.fpe > 40 ? '#EF4444' : h.fpe > 25 ? '#F59E0B' : '#10B981')}
           maxValue={60} bar={h.fpe != null && h.sym !== 'MSTR'} style={{ gridColumn: 'span 2' }}/>
         <Stat theme={theme} label="72-Day EMA"
-          value={h.ma72 != null ? `$${fmtPrice(h.ma72)}` : '—'}
+          value={h.ma72 != null && h.ma72 >= 0.01 ? `$${fmtPrice(h.ma72)}` : '—'}
           tint={h.aboveMa72 == null ? theme.text3 : h.aboveMa72 ? '#10B981' : '#F59E0B'}/>
         <Stat theme={theme} label="200-Day SMA"
-          value={h.ma200 != null ? `$${fmtPrice(h.ma200)}` : '—'}
+          value={h.ma200 != null && h.ma200 >= 0.01 ? `$${fmtPrice(h.ma200)}` : '—'}
           tint={h.aboveMa200 == null ? theme.text3 : h.aboveMa200 ? '#10B981' : '#F59E0B'}/>
       </div>
 
@@ -1120,7 +1131,7 @@ function SettingsScreen({ theme, onBack, onGlossary, onSignOut, user }) {
           </div>
           <div>
             <div style={{ fontSize: 16, fontWeight: 700, color: theme.text }}>{user || 'Guest'}</div>
-            <div style={{ fontSize: 11, color: theme.text3, marginTop: 1 }}>DCA Tracker</div>
+            <div style={{ fontSize: 11, color: theme.text3, marginTop: 1 }}>DCA Anchor</div>
           </div>
         </Card>
       </div>
@@ -1148,7 +1159,7 @@ function SettingsScreen({ theme, onBack, onGlossary, onSignOut, user }) {
       <div style={{ padding: '8px 16px' }}>
         <button onClick={onSignOut} style={{ width: '100%', height: 44, borderRadius: 12, border: `1px solid ${theme.line2}`, background: theme.pillBg, color: '#EF4444', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Log out</button>
       </div>
-      <div style={{ textAlign: 'center', fontSize: 10, color: theme.text3, padding: '4px 16px 16px', fontFamily: 'var(--font-mono)' }}>DCA Tracker 3.0.0</div>
+      <div style={{ textAlign: 'center', fontSize: 10, color: theme.text3, padding: '4px 16px 16px', fontFamily: 'var(--font-mono)' }}>DCA Anchor 3.0.0</div>
       <div style={{ height: 110 }}/>
     </div>
   );
@@ -1606,9 +1617,10 @@ function CalculatorScreen({ theme, holdings }) {
 
 function DesktopSidebar({ theme, activeScreen, onNav, user }) {
   const items = [
-    { id: 'home',     label: 'Home',       icon: Ic.home, screen: 'dashboard' },
-    { id: 'calc',     label: 'Calculator', icon: Ic.calc, screen: 'calculator' },
-    { id: 'glossary', label: 'Glossary',   icon: Ic.book, screen: 'glossary' },
+    { id: 'home',     label: 'Home',       icon: Ic.home,    screen: 'dashboard' },
+    { id: 'calc',     label: 'Calculator', icon: Ic.calc,    screen: 'calculator' },
+    { id: 'compare',  label: 'Compare',    icon: Ic.compare, screen: 'compare',   href: '/compare' },
+    { id: 'glossary', label: 'Glossary',   icon: Ic.book,    screen: 'glossary' },
   ];
   return (
     <div style={{
@@ -1626,22 +1638,31 @@ function DesktopSidebar({ theme, activeScreen, onNav, user }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: `0 4px 12px ${theme.brand}55`,
         }}>{Ic.logo(16, '#fff')}</div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: theme.text, letterSpacing: '-.02em' }}>DCA Tracker</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: theme.text, letterSpacing: '-.02em' }}>DCA Anchor</div>
       </div>
       {/* Nav items */}
       <div style={{ flex: 1, padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {items.map(item => {
           const on = activeScreen === item.screen || (item.screen === 'dashboard' && activeScreen === 'detail');
+          const navStyle = {
+            display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+            borderRadius: 10, border: 'none', cursor: 'pointer',
+            background: on ? theme.brand + '18' : 'transparent',
+            color: on ? theme.brand : theme.text3,
+            fontWeight: on ? 600 : 500, fontSize: 13,
+            borderLeft: on ? `2px solid ${theme.brand}` : '2px solid transparent',
+            transition: 'all .15s', textAlign: 'left', textDecoration: 'none', width: '100%',
+          };
+          if (item.href) {
+            return (
+              <a key={item.id} href={item.href} style={navStyle}>
+                {item.icon(16, theme.text3)}
+                {item.label}
+              </a>
+            );
+          }
           return (
-            <button key={item.id} onClick={() => onNav(item.screen)} style={{
-              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-              borderRadius: 10, border: 'none', cursor: 'pointer',
-              background: on ? theme.brand + '18' : 'transparent',
-              color: on ? theme.brand : theme.text3,
-              fontWeight: on ? 600 : 500, fontSize: 13,
-              borderLeft: on ? `2px solid ${theme.brand}` : '2px solid transparent',
-              transition: 'all .15s', textAlign: 'left',
-            }}>
+            <button key={item.id} onClick={() => onNav(item.screen)} style={navStyle}>
               {item.icon(16, on ? theme.brand : theme.text3)}
               {item.label}
             </button>
@@ -1813,7 +1834,6 @@ export default function Home() {
   const [fgIndex, setFgIndex] = useState(null);
   const [loading, setLoading] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState(null);
-  const didMount = useRef(false);
 
   const cur = stack[stack.length - 1];
   const navigate = (screen, arg) => setStack(s => [...s, { screen, arg }]);
@@ -1868,14 +1888,6 @@ export default function Home() {
       body: JSON.stringify({ username: user, tickers: selectedTickers }),
     }).catch(() => {});
   }, [selectedTickers]);
-
-  useEffect(() => {
-    if (!didMount.current) { didMount.current = true; return; }
-    if (cur.screen === 'signin') return;
-    if (tab === 'home')     replace('dashboard');
-    if (tab === 'calc')     replace('calculator');
-    if (tab === 'glossary') replace('glossary');
-  }, [tab]);
 
   // Fetch Fear & Greed index — server first, browser fallback to alternative.me
   useEffect(() => {
@@ -1976,6 +1988,18 @@ export default function Home() {
     if (screen === 'glossary')   setTab('glossary');
   };
 
+  const mobileNav = (nextTab) => {
+    setTab(nextTab);
+    if (nextTab === 'home')     replace('dashboard');
+    if (nextTab === 'calc')     replace('calculator');
+    if (nextTab === 'glossary') replace('glossary');
+  };
+
+  const openAddTicker = () => {
+    setTab('home');
+    navigate('add');
+  };
+
   let body;
   if (cur.screen === 'signin') body = <SignIn theme={theme} onEnter={handleEnter}/>;
   else if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex}/>;
@@ -1989,7 +2013,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>DCA Tracker</title>
+        <title>DCA Anchor</title>
         <meta name="description" content="Transparent DCA analytics — not advice"/>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
         <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -2068,7 +2092,7 @@ export default function Home() {
           {/* Desktop header (authenticated only) */}
           {!onSignin && (
             <div className="dca-dsk-hdr">
-              <DesktopHeader theme={theme} user={user} onAdd={() => navigate('add')} fgIndex={fgIndex}/>
+              <DesktopHeader theme={theme} user={user} onAdd={openAddTicker} fgIndex={fgIndex}/>
             </div>
           )}
 
@@ -2087,7 +2111,7 @@ export default function Home() {
             <div className="dca-dash-grid">
               {/* Left: holdings table */}
               <div className="dca-dash-left">
-                <div className="dca-mob-only">
+                <div className="dca-mob-only" style={{ paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}>
                   {/* Mobile: render full Dashboard (has notif bar, etc.) */}
                   {body}
                 </div>
@@ -2118,9 +2142,11 @@ export default function Home() {
           )}
 
           {/* Mobile bottom nav */}
-          <div className="dca-mob-nav">
-            <BottomNav theme={theme} tab={tab} setTab={setTab} onAdd={() => navigate('add')}/>
-          </div>
+          {!onSignin && (
+            <div className="dca-mob-nav">
+              <BottomNav theme={theme} tab={tab} onTab={mobileNav} onAdd={openAddTicker}/>
+            </div>
+          )}
         </div>
       </div>
     </>
