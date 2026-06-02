@@ -1,6 +1,6 @@
 {
   "name": "DCA Portfolio Optimizer",
-  "short_name": "DCA Tracker",
+  "short_name": "DCA Anchor",
   "description": "Build a DCA watchlist and get periodic buy suggestions",
   "start_url": "/",
   "display": "standalone",
@@ -47,7 +47,7 @@
   ],
   "screenshots": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 390 844'><rect width='390' height='844' fill='%230f0f1a'/><text x='195' y='422' font-size='40' text-anchor='middle' fill='%23666'>DCA Tracker</text></svg>",
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 390 844'><rect width='390' height='844' fill='%230f0f1a'/><text x='195' y='422' font-size='40' text-anchor='middle' fill='%23666'>DCA Anchor</text></svg>",
       "sizes": "390x844",
       "type": "image/svg+xml",
       "form_factor": "narrow"

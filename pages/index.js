@@ -2102,7 +2102,7 @@ export default function Home() {
         .dca-sidebar   { display: none; }
         .dca-dsk-hdr   { display: none; }
         .dca-mob-nav   { position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; display: block; }
-        .dca-mob-shell { max-width: 430px; margin: 0 auto; min-height: 100vh; position: relative; overflow: hidden; }
+        .dca-mob-shell { max-width: 430px; margin: 0 auto; height: 100vh; position: relative; overflow: hidden; }
         .dca-mob-inner { position: absolute; inset: 0; overflow-y: auto; padding-top: 8px; padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
         .dca-dsk-only  { display: none; }
         .dca-mob-only  { display: block; }
@@ -2116,7 +2116,7 @@ export default function Home() {
           .dca-main       { flex: 1; display: flex; flex-direction: column; min-width: 0; height: 100vh; overflow: hidden; }
           .dca-dsk-hdr    { display: flex; flex-shrink: 0; }
           .dca-mob-nav    { display: none !important; }
-          .dca-mob-shell  { max-width: none; margin: 0; min-height: 0; flex: 1; overflow: hidden; position: relative; }
+          .dca-mob-shell  { max-width: none; margin: 0; min-height: 0; height: auto; flex: 1; overflow: hidden; position: relative; }
           .dca-mob-inner  { position: absolute; inset: 0; overflow-y: auto; padding-bottom: 0; }
           .dca-dsk-only   { display: block; }
           .dca-mob-only   { display: none; }

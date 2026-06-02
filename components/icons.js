@@ -93,4 +93,11 @@ export const Ic = {
       <path d="M8 13h1M12 13h1M16 13h1M8 17h1M12 17h1M16 17h1"/>
     </svg>
   ),
+  compare: (s = 22, c = 'currentColor') => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="4" width="8" height="16" rx="2"/>
+      <rect x="14" y="4" width="8" height="16" rx="2"/>
+      <path d="M10 9l4-0M10 12h4M10 15h3" strokeWidth="1.4"/>
+    </svg>
+  ),
 };

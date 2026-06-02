@@ -11,8 +11,8 @@ export default function Methodology() {
   return (
     <>
       <Head>
-        <title>Score Methodology — DCA Tracker</title>
-        <meta name="description" content="How the DCA Tracker composite score is calculated"/>
+        <title>Score Methodology — DCA Anchor</title>
+        <meta name="description" content="How the DCA Anchor composite score is calculated"/>
       </Head>
       <div style={{ background: theme.bg, minHeight: '100vh', color: T, fontFamily: 'system-ui, sans-serif' }}>
         <div style={{ maxWidth: 680, margin: '0 auto', padding: '32px 20px 60px' }}>
@@ -24,7 +24,7 @@ export default function Methodology() {
 
           <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-.03em', marginBottom: 6 }}>Score Methodology</h1>
           <p style={{ fontSize: 14, color: T2, lineHeight: 1.7, marginBottom: 32 }}>
-            How the DCA Tracker composite score (0–10) is calculated — plain English, no jargon.
+            How the DCA Anchor composite score (0–10) is calculated — plain English, no jargon.
           </p>
 
           <Disclaimer theme={theme}/>
@@ -84,7 +84,7 @@ export default function Methodology() {
                   ['7–10', 'High', 'Multiple favorable signals aligned'],
                   ['5.5–7', 'Favorable Setup', 'More signals positive than negative'],
                   ['4–5.5', 'Neutral', 'Mixed or no strong signals'],
-                  ['0–4', 'Wait Zone', 'Signals unfavorable for adding now'],
+                  ['0–4', 'Wait', 'Signals unfavorable for adding now'],
                 ].map(([range, label, meaning]) => (
                   <tr key={range} style={{ borderBottom: `1px solid ${theme.line}` }}>
                     <td style={{ padding: '10px 10px', fontFamily: 'var(--font-mono)', fontSize: 13, color: theme.brand }}>{range}</td>
@@ -148,7 +148,7 @@ export default function Methodology() {
                     ['8–10', 'High', 'Load the Boat — all signals aligned, maximum conviction entry'],
                     ['6–7.9', 'Favorable Setup', 'Swing Entry — near support, good risk/reward'],
                     ['4–5.9', 'Neutral', 'Quick Entry — mixed signals, proceed with normal DCA schedule'],
-                    ['0–3.9', 'Wait Zone', 'No entry — signals unfavorable, defer this buy cycle'],
+                    ['0–3.9', 'Wait', 'No entry — signals unfavorable, defer this buy cycle'],
                   ].map(([score, label, equiv]) => (
                     <tr key={score} style={{ borderBottom: `1px solid ${theme.line}` }}>
                       <td style={{ padding: '10px 10px', fontFamily: 'var(--font-mono)', color: theme.brand, fontSize: 13 }}>{score}</td>

@@ -66,7 +66,7 @@ self.addEventListener('fetch', (event) => {
 // Push notification handler
 self.addEventListener('push', (event) => {
   const data = event.data?.json() || {};
-  const title = data.title || 'DCA Tracker';
+  const title = data.title || 'DCA Anchor';
   const options = {
     body: data.body || 'New update available',
     icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="40" fill="%230f0f1a"/><text x="96" y="130" font-size="110" text-anchor="middle" fill="%2300d4ff">📊</text></svg>',

@@ -2,47 +2,50 @@ export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-    
-    const { symbol } = req.query;
-    
-    if (!symbol) {
-        return res.status(400).json({ error: 'Symbol required' });
-    }
-    
+    if (req.method === 'OPTIONS') return res.status(200).end();
+
+    const raw = req.query.symbol || req.query.tickers || '';
+    const symbol = raw.split(',')[0].toUpperCase().trim();
+    if (!symbol) return res.status(400).json({ error: 'Symbol required', v: 4 });
+
     try {
-        // Fetch news from Yahoo Finance
-        const response = await fetch(
-            `https://query1.finance.yahoo.com/v1/finance/search?q=${symbol}&newsCount=5&enableFuzzyQuery=false`,
-            {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                    'Accept': 'application/json'
-                }
-            }
-        );
-        
-        const data = await response.json();
-        
-        if (data.news && data.news.length > 0) {
-            const news = data.news.map(item => ({
-                title: item.title,
-                publisher: item.publisher,
-                link: item.link,
-                published: new Date(item.providerPublishTime * 1000).toLocaleDateString(),
-                thumbnail: item.thumbnail?.resolutions?.[0]?.url || null
-            }));
-            
-            res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=3600');
-            return res.status(200).json({ symbol, news });
+        const query = encodeURIComponent(`${symbol} stock`);
+        const feedUrl = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
+
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 8000);
+        const resp = await fetch(feedUrl, {
+            signal: ctrl.signal,
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+        });
+        clearTimeout(timer);
+
+        const xml = await resp.text();
+
+        // Parse RSS items without external dependencies
+        const articles = [];
+        const itemRe = /<item>([\s\S]*?)<\/item>/g;
+        let m;
+        while ((m = itemRe.exec(xml)) !== null && articles.length < 4) {
+            const block = m[1];
+            const titleRaw = (block.match(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) ||
+                              block.match(/<title>([\s\S]*?)<\/title>/))?.[1] || '';
+            const link = (block.match(/<link>([\s\S]*?)<\/link>/))?.[1]?.trim() || '';
+            const pubDate = (block.match(/<pubDate>([\s\S]*?)<\/pubDate>/))?.[1]?.trim() || '';
+
+            // Google News title format: "Headline text - Publisher Name"
+            const lastDash = titleRaw.lastIndexOf(' - ');
+            const title = lastDash > 0 ? titleRaw.substring(0, lastDash).trim() : titleRaw.trim();
+            const source = lastDash > 0 ? titleRaw.substring(lastDash + 3).trim() : 'Google News';
+
+            if (title) articles.push({ title, url: link, source, publishedAt: pubDate });
         }
-        
-        return res.status(200).json({ symbol, news: [] });
-    } catch (error) {
-        console.error('News fetch error:', error);
-        return res.status(500).json({ error: error.message, symbol, news: [] });
+
+        console.log(`[news] ${symbol}: ${articles.length} articles`);
+        res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=1800');
+        return res.status(200).json({ articles });
+    } catch (e) {
+        console.error('[news] error:', e.message);
+        return res.status(200).json({ articles: [] });
     }
 }

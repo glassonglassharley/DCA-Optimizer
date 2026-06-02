@@ -138,8 +138,8 @@ export default async function handler(req, res) {
         const finalPrice = rv(price.regularMarketPrice) || currentPrice;
         const finalChg = rv(price.regularMarketChangePercent) || regularMarketChangePercent;
 
-        const forwardPE = rv(summary.forwardPE);
-        console.log(`[metrics] ${symbol} forwardPE raw:`, JSON.stringify(summary.forwardPE), '→ rv:', forwardPE);
+        const forwardPE = rv(summary.forwardPE) ?? rv(stats.forwardPE);
+        console.log(`[metrics] ${symbol} forwardPE summary:`, JSON.stringify(summary.forwardPE), 'stats:', JSON.stringify(stats.forwardPE), '→ rv:', forwardPE);
         const fiftyTwoWeekHigh = rv(summary.fiftyTwoWeekHigh);
         const fiftyTwoWeekLow = rv(summary.fiftyTwoWeekLow);
         const targetPrice = rv(financial.targetMeanPrice);
