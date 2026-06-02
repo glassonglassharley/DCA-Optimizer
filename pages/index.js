@@ -954,7 +954,10 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
       </div>
 
       <div style={{ padding: '0 16px' }}>
-        <button style={{ width: '100%', height: 46, borderRadius: 12, cursor: 'pointer', border: `1px solid ${theme.line2}`, background: theme.pillBg, color: theme.text, fontWeight: 600, fontSize: 13 }}>Set Alert</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderRadius: 12, border: `1px dashed ${theme.line2}`, background: theme.bg2 }}>
+          <span style={{ fontSize: 16 }}>🔔</span>
+          <span style={{ fontSize: 12, color: theme.text3, fontWeight: 500 }}>Price alerts — coming soon</span>
+        </div>
       </div>
       <div style={{ height: 110 }}/>
     </div>
@@ -1898,7 +1901,7 @@ export default function Home() {
 
   const cur = stack[stack.length - 1];
   const navigate = (screen, arg) => setStack(s => [...s, { screen, arg }]);
-  const back = () => setStack(s => s.length > 1 ? s.slice(0, -1) : s);
+  const back = () => setStack(s => s.length > 1 ? s.slice(0, -1) : [{ screen: 'dashboard' }]);
   const replace = (screen) => setStack([{ screen }]);
 
   // Auto-login from localStorage on mount
