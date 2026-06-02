@@ -6,6 +6,14 @@ import {
   getColor, fgColor, fgLabel, rsiSignalColor, shade, fmtPrice, computeScore,
 } from '../components/tokens';
 
+// ─── Ticker disambiguation ────────────────────────────────────────────────────
+const DISAMBIGUATION_MAP = {
+  'HYPE': [
+    { sym: 'HYPE',   label: 'Hyperliquid',     sub: 'Crypto · L1 DEX token (HYPE-USD)', tag: 'CRYPTO' },
+    { sym: 'HYPE.V', label: 'Aris Mining Corp', sub: 'Stock · TSX Venture Exchange',     tag: 'STOCK'  },
+  ],
+};
+
 // ─── Atoms ────────────────────────────────────────────────────────────────────
 
 function TickerDot({ sym, size = 28, theme }) {
@@ -959,15 +967,10 @@ function AddTicker({ theme, onBack, selectedTickers, onToggle }) {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState(null); // null | 'loading' | 'added' | 'notfound' | 'exists'
   const [lastSym, setLastSym] = useState('');
+  const [disambig, setDisambig] = useState(null); // null | array of options
 
-  const handleAdd = async () => {
-    const sym = q.trim().toUpperCase();
-    if (!sym) return;
-    if (selectedTickers.includes(sym)) {
-      setLastSym(sym);
-      setStatus('exists');
-      return;
-    }
+  const doAdd = async (sym) => {
+    setDisambig(null);
     setStatus('loading');
     try {
       const r = await fetch(`/api/metrics?symbol=${encodeURIComponent(sym)}`);
@@ -988,6 +991,19 @@ function AddTicker({ theme, onBack, selectedTickers, onToggle }) {
     } catch {
       setStatus('notfound');
     }
+  };
+
+  const handleAdd = () => {
+    const sym = q.trim().toUpperCase();
+    if (!sym) return;
+    if (selectedTickers.includes(sym)) {
+      setLastSym(sym);
+      setStatus('exists');
+      return;
+    }
+    const options = DISAMBIGUATION_MAP[sym];
+    if (options) { setDisambig(options); return; }
+    doAdd(sym);
   };
 
   const canAdd = q.trim().length > 0 && status !== 'loading';
@@ -1025,6 +1041,44 @@ function AddTicker({ theme, onBack, selectedTickers, onToggle }) {
         {status === 'added'    && <div style={{ fontSize: 11.5, color: '#10B981', paddingLeft: 2 }}>{lastSym} added.</div>}
         {!status && <div style={{ fontSize: 11, color: theme.text3, paddingLeft: 2 }}>Any stock, ETF, or crypto — type the symbol and press Add.</div>}
       </div>
+
+      {/* Disambiguation picker */}
+      {disambig && (
+        <div style={{ padding: '0 16px' }}>
+          <div style={{ padding: '16px', borderRadius: 16, background: theme.card, border: `1.5px solid ${theme.brand}55`, boxShadow: `0 8px 24px rgba(0,0,0,.35)` }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: theme.text, marginBottom: 4 }}>
+              Multiple assets match "{q.trim().toUpperCase()}"
+            </div>
+            <div style={{ fontSize: 11, color: theme.text3, marginBottom: 14 }}>Select the one you want to track:</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {disambig.map(opt => {
+                const c = getColor(opt.sym);
+                const tagC = opt.tag === 'CRYPTO' ? '#F97316' : '#60A5FA';
+                return (
+                  <button key={opt.sym} onClick={() => doAdd(opt.sym)} style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12,
+                    background: c + '12', border: `1.5px solid ${c}50`,
+                    cursor: 'pointer', textAlign: 'left', width: '100%',
+                  }}>
+                    <TickerDot sym={opt.sym} theme={theme} size={32}/>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: theme.text, fontFamily: 'var(--font-mono)' }}>{opt.label}</div>
+                      <div style={{ fontSize: 11, color: theme.text3, marginTop: 2 }}>{opt.sub}</div>
+                    </div>
+                    <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 5,
+                      color: tagC, background: tagC + '1F', border: `1px solid ${tagC}40` }}>{opt.tag}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button onClick={() => setDisambig(null)} style={{
+              marginTop: 10, width: '100%', padding: '10px', borderRadius: 10,
+              border: `1px solid ${theme.line2}`, background: 'transparent',
+              color: theme.text3, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            }}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       {selectedTickers.length > 0 && (
         <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1268,6 +1322,11 @@ function CalcMetricRow({ label, smartVal, blindVal, theme }) {
 function CalculatorScreen({ theme, holdings }) {
   const tickers = holdings.map(h => h.sym);
   const [ticker, setTicker] = useState(tickers[0] || '');
+
+  // Sync ticker when holdings load after initial mount (async data fetch)
+  useEffect(() => {
+    if (!ticker && tickers.length > 0) setTicker(tickers[0]);
+  }, [tickers, ticker]);
   const [amount, setAmount] = useState('100');
   const [frequency, setFrequency] = useState('weekly');
   const [buyDay, setBuyDay] = useState('1'); // weekly: 0=Mon…4=Fri; monthly: 1,8,15,22
@@ -1814,9 +1873,11 @@ function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgInd
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 function tagFor(sym) {
-  const crypto = ['BTC', 'ETH', 'SOL', 'HYPE', 'COIN'];
+  const crypto = ['BTC', 'ETH', 'SOL', 'HYPE', 'COIN', 'BNB', 'ADA', 'DOGE', 'AVAX'];
   const income = ['DIVO'];
   const hedge = ['GLD'];
+  // -USD suffix always means crypto
+  if (sym.endsWith('-USD')) return 'CRYPTO';
   if (crypto.includes(sym)) return 'CRYPTO';
   if (income.includes(sym)) return 'INCOME';
   if (hedge.includes(sym)) return 'HEDGE';

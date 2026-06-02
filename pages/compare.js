@@ -14,6 +14,7 @@ const ASSET_W = 168;
 const MOBILE_LABEL_W = 100;
 
 const CRYPTO_SYMS = new Set(['BTC', 'ETH', 'SOL', 'HYPE', 'BNB', 'ADA', 'DOGE', 'AVAX', 'COIN']);
+const isCryptoSym = (sym) => CRYPTO_SYMS.has(sym) || sym.endsWith('-USD');
 
 // ─── Shared atoms ─────────────────────────────────────────────────────────────
 
@@ -394,7 +395,7 @@ export default function ComparePage() {
   const assets = useMemo(() => symbols.map(sym => {
     try {
       const m = rawMetrics[sym] || {};
-      const isCrypto = CRYPTO_SYMS.has(sym);
+      const isCrypto = isCryptoSym(sym);
       const aboveMa72 = m.aboveMa72 ?? null;
       const aboveMa200 = m.aboveMa200 ?? null;
       const ma200dist = (m.currentPrice && m.ma200) ? ((m.currentPrice - m.ma200) / m.ma200) * 100 : null;
