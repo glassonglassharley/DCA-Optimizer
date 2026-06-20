@@ -14,6 +14,14 @@ const DISAMBIGUATION_MAP = {
   ],
 };
 
+// ─── Private / pre-IPO companies (no Yahoo Finance data) ─────────────────────
+const PRIVATE_COMPANIES = {
+  'SPACEX':  { name: 'SpaceX',  tag: 'STOCK' },
+  'STRIPE':  { name: 'Stripe',  tag: 'STOCK' },
+  'OPENAI':  { name: 'OpenAI',  tag: 'TECH'  },
+  'DATABRICKS': { name: 'Databricks', tag: 'TECH' },
+};
+
 // ─── Atoms ────────────────────────────────────────────────────────────────────
 
 function TickerDot({ sym, size = 28, theme }) {
@@ -304,7 +312,7 @@ function PercentileBar({ theme, v, sectorAvg }) {
 
 // ─── Header / Nav ─────────────────────────────────────────────────────────────
 
-function StaxHeader({ theme, onAdd, onGlossary, user, fgIndex }) {
+function StaxHeader({ theme, onAdd, onGlossary, onLogout, user, fgIndex }) {
   const [fgOpen, setFgOpen] = useState(false);
   const fgC = fgIndex != null ? fgColor(fgIndex) : theme.text3;
   const fgLbl = fgIndex != null ? fgLabel(fgIndex) : null;
@@ -345,6 +353,17 @@ function StaxHeader({ theme, onAdd, onGlossary, user, fgIndex }) {
             )}
           </div>
         )}
+        {user && (
+          <button type="button" onClick={onLogout} style={{
+            height: 28, padding: '0 9px', borderRadius: 8,
+            border: '1px solid rgba(239,68,68,.35)', background: 'rgba(239,68,68,.1)',
+            color: '#EF4444', fontSize: 11, fontWeight: 600,
+            display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer',
+            touchAction: 'manipulation',
+          }}>
+            {Ic.exit(12, '#EF4444')} Sign out
+          </button>
+        )}
         <IconBtn theme={theme} onClick={onGlossary}>
           <span style={{ fontSize: 14, fontWeight: 700, color: theme.text2, fontFamily: 'var(--font-mono)' }}>?</span>
         </IconBtn>
@@ -379,7 +398,7 @@ function BottomNav({ theme, tab, onTab, onAdd }) {
     { id: 'home',     label: 'Home',     icon: Ic.home },
     { id: 'calc',     label: 'Calc',     icon: Ic.calc },
     { id: 'compare',  label: 'Compare',  icon: Ic.compare, href: '/compare' },
-    { id: 'glossary', label: 'Glossary', icon: Ic.book },
+    { id: 'glossary', label: 'Glossary', icon: Ic.book,    href: '/glossary' },
   ];
   return (
     <div style={{
@@ -590,14 +609,14 @@ function SignIn({ theme, onEnter }) {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-function Dashboard({ theme, navigate, user, holdings, loading, onRefresh, lastRefreshed, fgIndex }) {
+function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefresh, lastRefreshed, fgIndex }) {
   const [focused, setFocused] = useState(null);
   const top = holdings[0];
   const chartData = holdings;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <StaxHeader theme={theme} user={user} fgIndex={fgIndex} onAdd={() => navigate('add')} onGlossary={() => navigate('glossary')}/>
+      <StaxHeader theme={theme} user={user} fgIndex={fgIndex} onAdd={() => navigate('add')} onGlossary={() => navigate('glossary')} onLogout={onLogout}/>
       <NotifBar theme={theme} holdings={holdings}/>
       <TransparencyBar theme={theme} onLearn={() => navigate('glossary')}/>
 
@@ -827,12 +846,30 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
   const h = holdings.find(x => x.sym === sym) || { sym, name: sym, price: null, rsi: null, fpe: null, fg: fgIndex, score: 5, rating: 'HOLD', displayRating: 'HOLD' };
   const c = getColor(sym);
 
-  const spark = useMemo(() => {
+  const [chartPeriod, setChartPeriod] = useState('1M');
+  const [chartPts, setChartPts] = useState(null);
+  const [chartLoading, setChartLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setChartPts(null);
+    setChartLoading(true);
+    fetch(`/api/chart?symbol=${encodeURIComponent(sym)}&period=${chartPeriod}`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled && d.closes?.length) setChartPts(d.closes); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setChartLoading(false); });
+    return () => { cancelled = true; };
+  }, [sym, chartPeriod]);
+
+  const fallbackSpark = useMemo(() => {
     const seed = sym.charCodeAt(0);
     const n = 40; const pts = []; let v = 50;
     for (let i = 0; i < n; i++) { v += Math.sin(i * 0.5 + seed) * 4 + (Math.random() - .5) * 3; pts.push(Math.max(10, Math.min(95, v))); }
     return pts;
   }, [sym]);
+
+  const displayPts = chartPts || fallbackSpark;
 
   const sectorAvg = sym === 'NVDA' || sym === 'MSFT' || sym === 'AAPL' || sym === 'GOOGL' || sym === 'META' || sym === 'AMD' ? 30 : 22;
 
@@ -862,11 +899,29 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
               </div>
             )}
           </div>
-          <Sparkline pts={spark} color={c} theme={theme}/>
+          <div style={{ opacity: chartLoading ? 0.5 : 1, transition: 'opacity .2s' }}>
+            <Sparkline pts={displayPts} color={c} theme={theme}/>
+          </div>
           <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
-            {['1D', '1W', '1M', '3M', '1Y', '5Y'].map((t, i) => (
-              <div key={t} style={{ flex: 1, textAlign: 'center', fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 600, padding: '5px 0', borderRadius: 6, background: i === 2 ? c + '24' : 'transparent', color: i === 2 ? c : theme.text3, border: i === 2 ? `1px solid ${c}50` : '1px solid transparent' }}>{t}</div>
-            ))}
+            {['1D', '1W', '1M', '3M', '1Y', '5Y'].map(t => {
+              const active = t === chartPeriod;
+              return (
+                <button
+                  key={t}
+                  onClick={() => setChartPeriod(t)}
+                  style={{
+                    flex: 1, textAlign: 'center', fontSize: 10,
+                    fontFamily: 'var(--font-mono)', fontWeight: 600,
+                    padding: '8px 0', borderRadius: 6, border: 'none',
+                    background: active ? c + '24' : 'transparent',
+                    color: active ? c : theme.text3,
+                    outline: active ? `1px solid ${c}50` : '1px solid transparent',
+                    cursor: 'pointer', touchAction: 'manipulation',
+                    minHeight: 32,
+                  }}
+                >{t}</button>
+              );
+            })}
           </div>
         </Card>
       </div>
@@ -974,6 +1029,15 @@ function AddTicker({ theme, onBack, selectedTickers, onToggle }) {
 
   const doAdd = async (sym) => {
     setDisambig(null);
+    // Private companies have no Yahoo Finance data — allow without validation
+    if (PRIVATE_COMPANIES[sym]) {
+      onToggle(sym);
+      setLastSym(sym);
+      setQ('');
+      setStatus('added');
+      setTimeout(() => setStatus(null), 2000);
+      return;
+    }
     setStatus('loading');
     try {
       const r = await fetch(`/api/metrics?symbol=${encodeURIComponent(sym)}`);
@@ -1677,12 +1741,12 @@ function CalculatorScreen({ theme, holdings }) {
 
 // ─── Desktop Layout ───────────────────────────────────────────────────────────
 
-function DesktopSidebar({ theme, activeScreen, onNav, user }) {
+function DesktopSidebar({ theme, activeScreen, onNav, user, onLogout }) {
   const items = [
     { id: 'home',     label: 'Home',       icon: Ic.home,    screen: 'dashboard' },
     { id: 'calc',     label: 'Calculator', icon: Ic.calc,    screen: 'calculator' },
     { id: 'compare',  label: 'Compare',    icon: Ic.compare, screen: 'compare',   href: '/compare' },
-    { id: 'glossary', label: 'Glossary',   icon: Ic.book,    screen: 'glossary' },
+    { id: 'glossary', label: 'Glossary',   icon: Ic.book,    screen: 'glossary',  href: '/glossary' },
   ];
   return (
     <div style={{
@@ -1734,10 +1798,13 @@ function DesktopSidebar({ theme, activeScreen, onNav, user }) {
       {/* User */}
       {user && (
         <div style={{ padding: '12px 16px 8px', borderTop: `1px solid rgba(255,255,255,.06)`, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 26, height: 26, borderRadius: 8, background: theme.brand + '28', color: theme.brand, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>
+          <div style={{ width: 26, height: 26, borderRadius: 8, background: theme.brand + '28', color: theme.brand, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
             {(user || 'G').slice(0, 1).toUpperCase()}
           </div>
-          <div style={{ fontSize: 12, color: theme.text2, fontWeight: 500, fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user}</div>
+          <div style={{ flex: 1, fontSize: 12, color: theme.text2, fontWeight: 500, fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user}</div>
+          <button onClick={onLogout} style={{ flexShrink: 0, height: 26, padding: '0 8px', borderRadius: 7, border: '1px solid rgba(239,68,68,.35)', background: 'rgba(239,68,68,.1)', color: '#EF4444', fontSize: 10.5, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap' }}>
+            {Ic.exit(11, '#EF4444')} Sign out
+          </button>
         </div>
       )}
       {/* Disclaimer */}
@@ -1750,7 +1817,7 @@ function DesktopSidebar({ theme, activeScreen, onNav, user }) {
   );
 }
 
-function DesktopHeader({ theme, user, onAdd, fgIndex }) {
+function DesktopHeader({ theme, user, onAdd, onLogout, fgIndex }) {
   const fgC = fgIndex != null ? fgColor(fgIndex) : theme.text3;
   const fgLbl = fgIndex != null ? fgLabel(fgIndex) : null;
   return (
@@ -1771,6 +1838,11 @@ function DesktopHeader({ theme, user, onAdd, fgIndex }) {
           </div>
         )}
         {user && <div style={{ fontSize: 12, color: theme.text3, fontFamily: 'var(--font-mono)', background: theme.bg2, padding: '4px 10px', borderRadius: 7, border: `1px solid ${theme.line}` }}>@{user}</div>}
+        {user && (
+          <button onClick={onLogout} style={{ height: 32, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(239,68,68,.35)', background: 'rgba(239,68,68,.1)', color: '#EF4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+            {Ic.exit(13, '#EF4444')} Sign out
+          </button>
+        )}
         <button onClick={onAdd} style={{
           height: 34, padding: '0 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
           background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`,
@@ -1876,10 +1948,10 @@ function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgInd
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
 function tagFor(sym) {
+  if (PRIVATE_COMPANIES[sym]) return PRIVATE_COMPANIES[sym].tag || 'STOCK';
   const crypto = ['BTC', 'ETH', 'SOL', 'HYPE', 'COIN', 'BNB', 'ADA', 'DOGE', 'AVAX'];
   const income = ['DIVO'];
   const hedge = ['GLD'];
-  // -USD suffix always means crypto
   if (sym.endsWith('-USD')) return 'CRYPTO';
   if (crypto.includes(sym)) return 'CRYPTO';
   if (income.includes(sym)) return 'INCOME';
@@ -2014,7 +2086,7 @@ export default function Home() {
       const displayRating = score >= 8 ? 'STRONG BUY' : score >= 6 ? 'BUY' : score >= 4 ? 'HOLD' : 'WAIT';
       return {
         sym,
-        name: m.name || sym,
+        name: m.name || PRIVATE_COMPANIES[sym]?.name || sym,
         price: m.currentPrice || null,
         chg: m.regularMarketChangePercent || null,
         rsi,
@@ -2066,13 +2138,13 @@ export default function Home() {
 
   let body;
   if (cur.screen === 'signin') body = <SignIn theme={theme} onEnter={handleEnter}/>;
-  else if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex}/>;
+  else if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} onLogout={handleSignOut} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex}/>;
   else if (cur.screen === 'detail') body = <AssetDetail theme={theme} sym={cur.arg} onBack={back} holdings={holdings} fgIndex={fgIndex}/>;
   else if (cur.screen === 'add') body = <AddTicker theme={theme} onBack={back} selectedTickers={selectedTickers} onToggle={toggleTicker}/>;
   else if (cur.screen === 'glossary') body = <GlossaryScreen theme={theme} onBack={back}/>;
   else if (cur.screen === 'settings') body = <SettingsScreen theme={theme} onBack={back} onGlossary={() => replace('glossary')} onSignOut={handleSignOut} user={user}/>;
   else if (cur.screen === 'calculator') body = <CalculatorScreen theme={theme} holdings={holdings}/>;
-  else body = <Dashboard theme={theme} navigate={navigate} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex}/>;
+  else body = <Dashboard theme={theme} navigate={navigate} onLogout={handleSignOut} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex}/>;
 
   return (
     <>
@@ -2101,9 +2173,10 @@ export default function Home() {
         /* Mobile defaults */
         .dca-sidebar   { display: none; }
         .dca-dsk-hdr   { display: none; }
-        .dca-mob-nav   { position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; display: block; }
-        .dca-mob-shell { max-width: 430px; margin: 0 auto; height: 100vh; position: relative; overflow: hidden; }
-        .dca-mob-inner { position: absolute; inset: 0; overflow-y: auto; padding-top: 8px; padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+        .dca-main      { height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        .dca-mob-nav   { flex-shrink: 0; z-index: 100; display: block; }
+        .dca-mob-shell { max-width: 430px; margin: 0 auto; flex: 1; min-height: 0; position: relative; overflow: hidden; }
+        .dca-mob-inner { position: absolute; inset: 0; overflow-y: auto; padding-top: 8px; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px); }
         .dca-dsk-only  { display: none; }
         .dca-mob-only  { display: block; }
 
@@ -2136,8 +2209,9 @@ export default function Home() {
         }
 
         @media (max-width: 767px) {
-          .dca-dash-grid { display: block; }
-          .dca-dash-left, .dca-dash-right { padding: 0; border: none; }
+          .dca-dash-grid { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+          .dca-dash-left { padding: 0; border: none; flex: 1; min-height: 0; overflow-y: auto; }
+          .dca-dash-right { padding: 0; border: none; }
           .dca-signin-wrap, .dca-signin-box { display: contents; }
         }
       `}</style>
@@ -2146,7 +2220,7 @@ export default function Home() {
         {/* ── Sidebar (desktop only) ── */}
         {!onSignin && (
           <aside className="dca-sidebar">
-            <DesktopSidebar theme={theme} activeScreen={cur.screen} onNav={desktopNav} user={user}/>
+            <DesktopSidebar theme={theme} activeScreen={cur.screen} onNav={desktopNav} user={user} onLogout={handleSignOut}/>
           </aside>
         )}
 
@@ -2156,7 +2230,7 @@ export default function Home() {
           {/* Desktop header (authenticated only) */}
           {!onSignin && (
             <div className="dca-dsk-hdr">
-              <DesktopHeader theme={theme} user={user} onAdd={openAddTicker} fgIndex={fgIndex}/>
+              <DesktopHeader theme={theme} user={user} onAdd={openAddTicker} onLogout={handleSignOut} fgIndex={fgIndex}/>
             </div>
           )}
 
@@ -2175,8 +2249,7 @@ export default function Home() {
             <div className="dca-dash-grid">
               {/* Left: holdings table */}
               <div className="dca-dash-left">
-                <div className="dca-mob-only" style={{ paddingBottom: 'calc(80px + env(safe-area-inset-bottom, 0px))' }}>
-                  {/* Mobile: render full Dashboard (has notif bar, etc.) */}
+                <div className="dca-mob-only" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}>
                   {body}
                 </div>
                 <div className="dca-dsk-only">
