@@ -2072,7 +2072,7 @@ export default function Home() {
   }, [selectedTickers]);
 
   const holdings = useMemo(() => {
-    return selectedTickers.map(sym => {
+    return selectedTickers.filter(sym => typeof sym === 'string').map(sym => {
       const m = metricsMap[sym] || {};
       const rating = m.rating || 'HOLD';
       const rsi = m.rsi;
