@@ -26,13 +26,18 @@ environment variables — see `.env.example`:
 
 | Variable | Where to find it |
 | --- | --- |
-| `SUPABASE_URL` | Supabase dashboard → Project Settings → API |
+| `SUPABASE_URL` | Supabase dashboard → Project Settings → Data API |
 | `SUPABASE_ANON_KEY` | same page, the **anon/public** key (never `service_role`) |
 
 Set both locally in `.env.local` and on Vercel under Project Settings →
 Environment Variables, for **Production and Preview**.
 
-Then run `supabase-schema.sql` in the Supabase SQL editor. It creates the
+Use these names exactly — **no `NEXT_PUBLIC_` prefix**. Both are read server-side
+only, in `lib/supabaseSync.js` via the `/api/sync` route; the browser never sees
+them and never needs to. Prefixing the names would leave `process.env.SUPABASE_URL`
+undefined and `/api/sync` would return `503 sync_unconfigured`.
+
+For a new project, run `supabase-schema.sql` in the Supabase SQL editor. It creates the
 `tickers` table, the UNIQUE constraint on `username` that the upsert depends on,
 and the anon RLS policy.
 
