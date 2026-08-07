@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Head from 'next/head';
+import { SignIn as ClerkSignIn, SignedIn, SignedOut, UserButton, useUser } from '@clerk/nextjs';
 import { Ic } from '../components/icons';
 import {
   TICKER_COLORS, RATING_STYLES, RATING_LABELS, TAG_STYLES, THEMES, GLOSSARY,
@@ -354,15 +355,7 @@ function StaxHeader({ theme, onAdd, onGlossary, onLogout, user, fgIndex }) {
           </div>
         )}
         {user && (
-          <button type="button" onClick={onLogout} style={{
-            height: 28, padding: '0 9px', borderRadius: 8,
-            border: '1px solid rgba(239,68,68,.35)', background: 'rgba(239,68,68,.1)',
-            color: '#EF4444', fontSize: 11, fontWeight: 600,
-            display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer',
-            touchAction: 'manipulation',
-          }}>
-            {Ic.exit(12, '#EF4444')} Sign out
-          </button>
+          <UserButton afterSignOutUrl="/"/>
         )}
         <IconBtn theme={theme} onClick={onGlossary}>
           <span style={{ fontSize: 14, fontWeight: 700, color: theme.text2, fontFamily: 'var(--font-mono)' }}>?</span>
@@ -507,37 +500,105 @@ function TransparencyBar({ theme, onLearn }) {
   );
 }
 
-// ─── Local ticker cache ───────────────────────────────────────────────────────
-// Mirrors the server list per username. The list is written here before every
-// network call, so a backend outage degrades to stale-but-present data instead
-// of silently emptying the portfolio.
+// ─── Local portfolio cache ────────────────────────────────────────────────────
+// Mirrors the server state per Clerk user id, so a backend outage renders
+// stale-but-present data instead of an empty portfolio. Keyed by user id rather
+// than username now that identity comes from Clerk.
 
-const TICKERS_KEY = (username) => `dca_tickers_${username}`;
+const PORTFOLIOS_KEY = (userId) => `dca_portfolios_${userId}`;
 
-function readCachedTickers(username) {
-  if (!username) return null;
+function readCachedPortfolios(userId) {
+  if (!userId) return null;
   try {
-    const raw = localStorage.getItem(TICKERS_KEY(username));
+    const raw = localStorage.getItem(PORTFOLIOS_KEY(userId));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter(t => typeof t === 'string') : null;
+    return Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
   }
 }
 
-function writeCachedTickers(username, tickers) {
-  if (!username) return;
+function writeCachedPortfolios(userId, portfolios) {
+  if (!userId) return;
   try {
-    localStorage.setItem(TICKERS_KEY(username), JSON.stringify(tickers));
+    localStorage.setItem(PORTFOLIOS_KEY(userId), JSON.stringify(portfolios));
   } catch {
     // Private-mode or quota failure — the network write is still attempted.
   }
 }
 
-function clearCachedTickers(username) {
-  if (!username) return;
-  try { localStorage.removeItem(TICKERS_KEY(username)); } catch {}
+// ─── Portfolio switcher ───────────────────────────────────────────────────────
+
+function PortfolioBar({ theme, portfolios, activeId, onSelect, onCreate }) {
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState('');
+  const [error, setError] = useState(null);
+
+  if (!portfolios.length && !adding) return null;
+
+  const submit = async () => {
+    const clean = name.trim();
+    if (!clean) return;
+    try {
+      await onCreate(clean);
+      setName('');
+      setAdding(false);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px 0', flexWrap: 'wrap' }}>
+      {portfolios.map(p => {
+        const on = p.id === activeId;
+        return (
+          <button
+            key={p.id}
+            onClick={() => onSelect(p.id)}
+            style={{
+              height: 28, padding: '0 11px', borderRadius: 8, cursor: 'pointer',
+              border: `1px solid ${on ? theme.brand : theme.line2}`,
+              background: on ? theme.brand + '22' : theme.pillBg,
+              color: on ? theme.brand : theme.text2,
+              fontSize: 11.5, fontWeight: on ? 700 : 500, whiteSpace: 'nowrap',
+            }}
+          >
+            {p.name}
+            <span style={{ marginLeft: 6, opacity: .65, fontFamily: 'var(--font-mono)' }}>{(p.items || []).length}</span>
+          </button>
+        );
+      })}
+
+      {adding ? (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <input
+            autoFocus
+            value={name}
+            maxLength={40}
+            onChange={e => { setName(e.target.value); if (error) setError(null); }}
+            onKeyDown={e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') { setAdding(false); setName(''); setError(null); } }}
+            placeholder="Portfolio name"
+            style={{
+              height: 28, width: 130, borderRadius: 8, padding: '0 9px',
+              border: `1px solid ${error ? '#EF4444' : theme.line2}`, background: theme.card,
+              color: theme.text, fontSize: 11.5, outline: 'none',
+            }}
+          />
+          <button onClick={submit} style={{ height: 28, padding: '0 10px', borderRadius: 8, border: 'none', background: theme.brand, color: '#fff', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>Add</button>
+        </span>
+      ) : (
+        <button
+          onClick={() => setAdding(true)}
+          style={{ height: 28, padding: '0 10px', borderRadius: 8, border: `1px dashed ${theme.line2}`, background: 'transparent', color: theme.text3, fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}
+        >+ New</button>
+      )}
+
+      {error && <span style={{ fontSize: 11, color: '#F87171', width: '100%' }}>{error}</span>}
+    </div>
+  );
 }
 
 // ─── Sync status banner ───────────────────────────────────────────────────────
@@ -569,110 +630,30 @@ function SyncBanner({ theme, state, onRetry }) {
 
 // ─── Sign In ──────────────────────────────────────────────────────────────────
 
-function SignIn({ theme, onEnter }) {
-  const [username, setUsername] = useState('');
-  const [status, setStatus] = useState(null); // null | 'loading' | 'error'
-
-  const clean = username.trim().toLowerCase();
-  const valid = /^[a-z0-9_-]{2,20}$/.test(clean);
-
-  const handleGo = async () => {
-    if (!valid || status === 'loading') return;
-    setStatus('loading');
-    try {
-      const r = await fetch(`/api/sync?username=${encodeURIComponent(clean)}`);
-      if (r.ok) {
-        const d = await r.json();
-        const cached = readCachedTickers(clean);
-        const hasCache = !!(cached && cached.length);
-        // An absent server row must not discard a list this device already holds.
-        onEnter(clean, {
-          tickers: d.found ? (d.tickers || []) : (cached || []),
-          synced: true,
-          needsPush: !d.found && hasCache,
-        });
-        return;
-      }
-      const d = await r.json().catch(() => ({}));
-      console.error('[sync] sign-in read failed:', r.status, d.message || d.error || '');
-    } catch (err) {
-      console.error('[sync] sign-in read failed:', err.message);
-    }
-    // Sync is down. Fall back to this device's cache rather than locking the user
-    // out of their own portfolio; the offline banner explains what they're seeing.
-    onEnter(clean, { tickers: readCachedTickers(clean) || [], synced: false });
-  };
-
+function SignIn({ theme }) {
   return (
-    <div style={{ position: 'relative', height: '100%', overflow: 'hidden', background: theme.bg, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ position: 'relative', minHeight: '100vh', overflowY: 'auto', background: theme.bg, display: 'flex', flexDirection: 'column' }}>
       <div style={{ position: 'absolute', top: -80, left: -60, width: 260, height: 260, borderRadius: '50%', background: `radial-gradient(circle, ${theme.brand}55, transparent 70%)`, filter: 'blur(2px)', pointerEvents: 'none' }}/>
       <div style={{ position: 'absolute', top: 120, right: -70, width: 220, height: 220, borderRadius: '50%', background: `radial-gradient(circle, ${theme.brand2}55, transparent 70%)`, filter: 'blur(2px)', pointerEvents: 'none' }}/>
 
       <div style={{ position: 'relative', padding: '48px 28px 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{
-          width: 64, height: 64, borderRadius: 20,
-          background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: `0 14px 32px ${theme.brand}66, 0 1px 0 rgba(255,255,255,.3) inset`,
-        }}>{Ic.logo(34, '#fff')}</div>
-        <div style={{ fontSize: 26, fontWeight: 700, color: theme.text, letterSpacing: '-.03em', marginTop: 14 }}>DCA Anchor</div>
-        <div style={{ fontSize: 12.5, color: theme.text2, marginTop: 4, textAlign: 'center', maxWidth: 260, lineHeight: 1.45 }}>
-          Pick a username — your watchlist syncs to any device.
+        <div style={{ width: 76, height: 76, borderRadius: 22, background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 12px 30px ${theme.brand}55` }}>
+          {Ic.layers(34, '#fff')}
+        </div>
+        <div style={{ fontSize: 30, fontWeight: 800, color: theme.text, letterSpacing: '-.03em', marginTop: 18 }}>DCA Anchor</div>
+        <div style={{ fontSize: 13.5, color: theme.text3, marginTop: 6, textAlign: 'center', lineHeight: 1.5, maxWidth: 300 }}>
+          Sign in with your email — your watchlist and portfolios follow you to any device.
         </div>
       </div>
 
-      <div style={{ position: 'relative', flex: 1, padding: '32px 22px 0', display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
-        <div>
-          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.08em', color: theme.text3, marginBottom: 6, paddingLeft: 2 }}>USERNAME</div>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '2px 4px 2px 14px',
-            background: theme.card, border: `1.5px solid ${status === 'error' ? '#EF4444' : valid ? theme.brand + '88' : theme.line2}`, borderRadius: 14, transition: 'border .2s',
-          }}>
-            <span style={{ color: theme.text3, fontSize: 14, fontFamily: 'var(--font-mono)', fontWeight: 600 }}>@</span>
-            <input
-              value={username}
-              onChange={e => { setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '')); if (status) setStatus(null); }}
-              onKeyDown={e => e.key === 'Enter' && handleGo()}
-              placeholder="your-name"
-              autoComplete="off"
-              spellCheck="false"
-              autoCapitalize="none"
-              style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', color: theme.text, fontSize: 15, padding: '14px 0', fontFamily: 'var(--font-mono)', fontWeight: 600, letterSpacing: '0.02em' }}
-            />
-            <button onClick={handleGo} disabled={!valid || status === 'loading'}
-              style={{
-                height: 38, padding: '0 16px', margin: 4, borderRadius: 10, border: 'none',
-                background: valid && status !== 'loading' ? `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})` : theme.line,
-                color: valid && status !== 'loading' ? '#fff' : theme.text3, fontSize: 12, fontWeight: 700,
-                cursor: valid && status !== 'loading' ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap',
-                boxShadow: valid && status !== 'loading' ? `0 6px 14px ${theme.brand}55` : 'none', transition: 'all .15s',
-                opacity: status === 'loading' ? 0.65 : 1,
-              }}>{status === 'loading' ? '…' : 'Go →'}</button>
-          </div>
-          {status === 'error' && <div style={{ marginTop: 6, fontSize: 11.5, color: '#EF4444', paddingLeft: 2 }}>Something went wrong — try again.</div>}
-          {!status && username.length > 0 && !valid && <div style={{ marginTop: 6, fontSize: 11.5, color: theme.text3, paddingLeft: 2 }}>2–20 chars · letters, numbers, _ or -</div>}
-          <div style={{ marginTop: 8, fontSize: 11, color: theme.text3, paddingLeft: 2, lineHeight: 1.5 }}>
-            New username? Claimed instantly. Returning? Your watchlist loads automatically.
-          </div>
-          <div style={{ marginTop: 6, fontSize: 10.5, color: theme.text3, paddingLeft: 2, lineHeight: 1.5, fontStyle: 'italic' }}>
-            No email. No password. No brokerage connection.
-          </div>
-        </div>
+      <div style={{ position: 'relative', flex: 1, display: 'flex', justifyContent: 'center', padding: '28px 16px 0' }}>
+        {/* routing="hash" keeps Clerk's sub-steps inside this single-page shell,
+            so no /sign-in or /sign-up route files are needed. */}
+        <ClerkSignIn routing="hash" signUpUrl="#/sign-up"/>
+      </div>
 
-        <div style={{ flex: 1 }}/>
-
-        <button onClick={() => onEnter('demo', [])} style={{
-          height: 48, borderRadius: 14, cursor: 'pointer', background: theme.card, color: theme.text,
-          border: `1.5px solid ${theme.line2}`, fontWeight: 700, fontSize: 13.5,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-        }}>
-          <span style={{ fontSize: 15 }}>✨</span> View Demo Portfolio
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.08em', color: theme.brand, background: theme.brand + '22', padding: '2px 6px', borderRadius: 5 }}>DEMO</span>
-        </button>
-
-        <div style={{ fontSize: 10, color: theme.text3, textAlign: 'center', lineHeight: 1.5, padding: '4px 8px 16px' }}>
-          Public watchlist — anyone with your username can view it. Public market data only. <b style={{ color: theme.text2 }}>Nothing here is financial advice.</b>
-        </div>
+      <div style={{ position: 'relative', fontSize: 10, color: theme.text3, textAlign: 'center', lineHeight: 1.5, padding: '20px 24px 24px' }}>
+        Public market data only. <b style={{ color: theme.text2 }}>Nothing here is financial advice.</b>
       </div>
     </div>
   );
@@ -687,7 +668,7 @@ function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefre
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <StaxHeader theme={theme} user={user} fgIndex={fgIndex} onAdd={() => navigate('add')} onGlossary={() => navigate('glossary')} onLogout={onLogout}/>
+      <StaxHeader theme={theme} user={userLabel} fgIndex={fgIndex} onAdd={() => navigate('add')} onGlossary={() => navigate('glossary')} onLogout={onLogout}/>
       <NotifBar theme={theme} holdings={holdings}/>
       <TransparencyBar theme={theme} onLearn={() => navigate('glossary')}/>
 
@@ -718,7 +699,7 @@ function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefre
         </div>
       )}
 
-      <HoldingsTable theme={theme} holdings={holdings} loading={loading} onPick={sym => navigate('detail', sym)} onRefresh={onRefresh} lastRefreshed={lastRefreshed}/>
+      <HoldingsTable theme={theme} holdings={holdings} loading={loading || dataLoading} onPick={sym => navigate('detail', sym)} onRefresh={onRefresh} lastRefreshed={lastRefreshed}/>
 
       {holdings.length === 0 && !loading && (
         <div style={{ textAlign: 'center', padding: '60px 20px', color: theme.text3 }}>
@@ -1308,7 +1289,7 @@ function GlossaryScreen({ theme, onBack }) {
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
-function SettingsScreen({ theme, onBack, onGlossary, onSignOut, user }) {
+function SettingsScreen({ theme, onBack, onGlossary, user, claim, onImport }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ padding: '10px 16px 4px', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1321,12 +1302,37 @@ function SettingsScreen({ theme, onBack, onGlossary, onSignOut, user }) {
           <div style={{ width: 54, height: 54, borderRadius: 16, background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 20, fontWeight: 700, boxShadow: `0 8px 18px ${theme.brand}55` }}>
             {(user || 'G').slice(0, 1).toUpperCase()}
           </div>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: theme.text }}>{user || 'Guest'}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: theme.text, overflow: 'hidden', textOverflow: 'ellipsis' }}>{user || 'Guest'}</div>
             <div style={{ fontSize: 11, color: theme.text3, marginTop: 1 }}>DCA Anchor</div>
           </div>
+          <UserButton afterSignOutUrl="/"/>
         </Card>
       </div>
+
+      {claim && claim.available && (
+        <div style={{ padding: '0 16px' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.12em', color: theme.text3, padding: '4px 4px 8px' }}>IMPORT</div>
+          <Card theme={theme} style={{ padding: 16 }}>
+            <div style={{ fontSize: 13, color: theme.text, fontWeight: 600, marginBottom: 4 }}>Bring in your old watchlist</div>
+            <div style={{ fontSize: 11.5, color: theme.text3, lineHeight: 1.45, marginBottom: 12 }}>
+              Copies your pre-login lists into this account as “Watchlist” and “Tagged Portfolio”.
+              Available once, only while this account is empty.
+            </div>
+            <button
+              onClick={onImport}
+              disabled={claim.busy}
+              style={{
+                width: '100%', height: 42, borderRadius: 12, border: 'none',
+                background: claim.busy ? theme.pillBg : `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`,
+                color: claim.busy ? theme.text3 : '#fff', fontWeight: 700, fontSize: 13,
+                cursor: claim.busy ? 'default' : 'pointer',
+              }}
+            >{claim.busy ? 'Importing…' : 'Import my data'}</button>
+            {claim.error && <div style={{ marginTop: 8, fontSize: 11.5, color: '#F87171' }}>{claim.error}</div>}
+          </Card>
+        </div>
+      )}
 
       {[
         { title: 'PORTFOLIO', items: [{ label: 'DCA Frequency', val: 'Weekly', icon: '🔁' }, { label: 'Buy Day', val: 'Mondays', icon: '📅' }, { label: 'Target Allocation', val: 'Balanced', icon: '⚖️' }] },
@@ -1348,10 +1354,7 @@ function SettingsScreen({ theme, onBack, onGlossary, onSignOut, user }) {
         </div>
       ))}
 
-      <div style={{ padding: '8px 16px' }}>
-        <button onClick={onSignOut} style={{ width: '100%', height: 44, borderRadius: 12, border: `1px solid ${theme.line2}`, background: theme.pillBg, color: '#EF4444', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Log out</button>
-      </div>
-      <div style={{ textAlign: 'center', fontSize: 10, color: theme.text3, padding: '4px 16px 16px', fontFamily: 'var(--font-mono)' }}>DCA Anchor 3.0.0</div>
+      <div style={{ textAlign: 'center', fontSize: 10, color: theme.text3, padding: '12px 16px 16px', fontFamily: 'var(--font-mono)' }}>DCA Anchor 3.0.0</div>
       <div style={{ height: 110 }}/>
     </div>
   );
@@ -1873,9 +1876,7 @@ function DesktopSidebar({ theme, activeScreen, onNav, user, onLogout }) {
             {(user || 'G').slice(0, 1).toUpperCase()}
           </div>
           <div style={{ flex: 1, fontSize: 12, color: theme.text2, fontWeight: 500, fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user}</div>
-          <button onClick={onLogout} style={{ flexShrink: 0, height: 26, padding: '0 8px', borderRadius: 7, border: '1px solid rgba(239,68,68,.35)', background: 'rgba(239,68,68,.1)', color: '#EF4444', fontSize: 10.5, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap' }}>
-            {Ic.exit(11, '#EF4444')} Sign out
-          </button>
+          <UserButton afterSignOutUrl="/"/>
         </div>
       )}
       {/* Disclaimer */}
@@ -1908,12 +1909,9 @@ function DesktopHeader({ theme, user, onAdd, onLogout, fgIndex }) {
             {fgLbl && <span style={{ fontSize: 10, color: theme.text3 }}>· {fgLbl}</span>}
           </div>
         )}
-        {user && <div style={{ fontSize: 12, color: theme.text3, fontFamily: 'var(--font-mono)', background: theme.bg2, padding: '4px 10px', borderRadius: 7, border: `1px solid ${theme.line}` }}>@{user}</div>}
-        {user && (
-          <button onClick={onLogout} style={{ height: 32, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(239,68,68,.35)', background: 'rgba(239,68,68,.1)', color: '#EF4444', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-            {Ic.exit(13, '#EF4444')} Sign out
-          </button>
-        )}
+        {user && <div style={{ fontSize: 12, color: theme.text3, fontFamily: 'var(--font-mono)', background: theme.bg2, padding: '4px 10px', borderRadius: 7, border: `1px solid ${theme.line}` }}>{user}</div>}
+        {/* Clerk owns sign-out, account and session switching from here. */}
+        <UserButton afterSignOutUrl="/"/>
         <button onClick={onAdd} style={{
           height: 34, padding: '0 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
           background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`,
@@ -2032,115 +2030,144 @@ function tagFor(sym) {
 
 export default function Home() {
   const theme = THEMES.dark;
-  const [authLoading, setAuthLoading] = useState(true);
-  const [stack, setStack] = useState([{ screen: 'signin' }]);
+  const { isLoaded: authLoaded, isSignedIn, user: clerkUser } = useUser();
+  const userId = clerkUser?.id || null;
+  const userLabel =
+    clerkUser?.primaryEmailAddress?.emailAddress || clerkUser?.username || 'Account';
+
+  const [stack, setStack] = useState([{ screen: 'dashboard' }]);
   const [tab, setTab] = useState('home');
-  const [user, setUser] = useState(null);
-  const [selectedTickers, setSelectedTickers] = useState([]);
+  const [portfolios, setPortfolios] = useState([]);
+  const [activeId, setActiveId] = useState(null);
+  const [dataLoading, setDataLoading] = useState(true);
   const [metricsMap, setMetricsMap] = useState({});
   const [fgIndex, setFgIndex] = useState(null);
   const [loading, setLoading] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState(null);
   const [syncState, setSyncState] = useState('ok'); // 'ok' | 'saving' | 'offline'
+  const [claim, setClaim] = useState({ available: false, busy: false, error: null });
 
   const cur = stack[stack.length - 1];
   const navigate = (screen, arg) => setStack(s => [...s, { screen, arg }]);
   const back = () => setStack(s => s.length > 1 ? s.slice(0, -1) : [{ screen: 'dashboard' }]);
   const replace = (screen) => setStack([{ screen }]);
 
-  // The only write path. Mirrors to localStorage before the request so the list
-  // survives a failure, then reports the real outcome instead of assuming success.
-  const pushTickers = async (username, tickers) => {
-    if (!username || username === 'DEMO PORTFOLIO') return false;
-    writeCachedTickers(username, tickers);
-    setSyncState('saving');
+  const activePortfolio = useMemo(
+    () => portfolios.find(p => p.id === activeId) || portfolios[0] || null,
+    [portfolios, activeId]
+  );
+
+  // The rest of the app still thinks in bare symbols; portfolios are the source.
+  const selectedTickers = useMemo(
+    () => (activePortfolio?.items || []).map(i => i.symbol),
+    [activePortfolio]
+  );
+
+  // Every state change goes through here so the cache can never drift from state.
+  const commit = useCallback((next) => {
+    setPortfolios(next);
+    writeCachedPortfolios(userId, next);
+  }, [userId]);
+
+  const loadPortfolios = useCallback(async ({ silent = false } = {}) => {
+    if (!userId) return;
+    if (!silent) setDataLoading(true);
     try {
-      const r = await fetch('/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, tickers }),
-      });
+      const r = await fetch('/api/portfolios');
       if (!r.ok) {
         const d = await r.json().catch(() => ({}));
-        throw new Error(`${r.status} ${d.message || d.error || 'save rejected'}`);
+        throw new Error(`${r.status} ${d.message || d.error || 'load failed'}`);
       }
+      const d = await r.json();
+      const list = Array.isArray(d.portfolios) ? d.portfolios : [];
+      commit(list);
+      setActiveId(prev => (list.some(p => p.id === prev) ? prev : (list[0]?.id ?? null)));
       setSyncState('ok');
-      return true;
     } catch (err) {
-      console.error('[sync] save failed:', err.message);
+      console.error('[portfolios] load failed:', err.message);
       setSyncState('offline');
-      return false;
+    } finally {
+      setDataLoading(false);
     }
-  };
+  }, [userId, commit]);
 
-  // Restore session on mount. The cached list renders immediately so a slow or
-  // dead backend never shows an empty portfolio; the server copy wins once it lands.
+  // Hydrate from cache first so a slow or failed request never shows an empty
+  // portfolio, then reconcile with the server.
   useEffect(() => {
-    const saved = localStorage.getItem('dca_username');
-    if (!saved) { setAuthLoading(false); return; }
-
-    const cached = readCachedTickers(saved);
-    setUser(saved);
-    setSelectedTickers(cached || []);
-    replace('dashboard');
-
-    (async () => {
-      try {
-        const r = await fetch(`/api/sync?username=${encodeURIComponent(saved)}`);
-        if (!r.ok) {
-          const d = await r.json().catch(() => ({}));
-          throw new Error(`${r.status} ${d.message || d.error || 'read rejected'}`);
-        }
-        const d = await r.json();
-        if (d.found) {
-          const remote = Array.isArray(d.tickers) ? d.tickers : [];
-          setSelectedTickers(remote);
-          writeCachedTickers(saved, remote);
-          setSyncState('ok');
-        } else if (cached && cached.length) {
-          // No server row yet, but this device has a list — push it up rather than
-          // letting an absent row blank out real data.
-          await pushTickers(saved, cached);
-        } else {
-          setSyncState('ok');
-        }
-      } catch (err) {
-        console.error('[sync] session restore failed:', err.message);
-        setSyncState('offline');
-      } finally {
-        setAuthLoading(false);
-      }
-    })();
-  }, []);
-
-  const handleEnter = (username, payload = {}) => {
-    const { tickers = [], synced = true, needsPush = false } = payload;
-    if (username === 'demo') {
-      setUser('DEMO PORTFOLIO');
-      setSelectedTickers(['BTC', 'ETH', 'NVDA', 'MSFT', 'AAPL', 'GOOGL', 'TSLA', 'AMZN', 'META', 'SOL', 'AMD']);
-      setSyncState('ok');
-    } else {
-      localStorage.setItem('dca_username', username);
-      writeCachedTickers(username, tickers);
-      setUser(username);
-      setSelectedTickers(tickers);
-      setSyncState(synced ? 'ok' : 'offline');
-      if (needsPush) pushTickers(username, tickers);
+    if (!authLoaded) return;
+    if (!isSignedIn) {
+      setPortfolios([]);
+      setActiveId(null);
+      setDataLoading(false);
+      return;
     }
-    replace('dashboard');
-    setTab('home');
+    const cached = readCachedPortfolios(userId);
+    if (cached && cached.length) {
+      setPortfolios(cached);
+      setActiveId(prev => prev ?? cached[0]?.id ?? null);
+    }
+    loadPortfolios({ silent: !!(cached && cached.length) });
+  }, [authLoaded, isSignedIn, userId, loadPortfolios]);
+
+  // Whether the one-time legacy import is still on the table.
+  useEffect(() => {
+    if (!authLoaded || !isSignedIn) return;
+    let cancelled = false;
+    fetch('/api/claim')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d && !cancelled) setClaim(c => ({ ...c, available: !!d.available })); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [authLoaded, isSignedIn, portfolios.length]);
+
+  const runImport = async () => {
+    setClaim(c => ({ ...c, busy: true, error: null }));
+    try {
+      const r = await fetch('/api/claim', { method: 'POST' });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.message || d.error || 'Import failed.');
+      const list = Array.isArray(d.portfolios) ? d.portfolios : [];
+      commit(list);
+      setActiveId(list[0]?.id ?? null);
+      setClaim({ available: false, busy: false, error: null });
+      setSyncState('ok');
+      replace('dashboard');
+      setTab('home');
+    } catch (err) {
+      console.error('[claim] import failed:', err.message);
+      setClaim(c => ({ ...c, busy: false, error: err.message }));
+    }
   };
 
-  const handleSignOut = () => {
-    // The per-username ticker cache is left in place so an unsynced list isn't
-    // destroyed by signing out; it is re-adopted on next sign-in.
-    localStorage.removeItem('dca_username');
-    setUser(null);
-    setSelectedTickers([]);
-    setSyncState('ok');
-    replace('signin');
-    setTab('home');
+  /** A brand-new account has no rows yet; create the default watchlist on demand. */
+  const ensurePortfolio = async () => {
+    if (activePortfolio) return activePortfolio;
+    const r = await fetch('/api/portfolios', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Watchlist', kind: 'watchlist' }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.message || d.error || 'Could not create a watchlist.');
+    const created = { ...d.portfolio, items: d.portfolio.items || [] };
+    commit([...portfolios, created]);
+    setActiveId(created.id);
+    return created;
   };
+
+  const createPortfolio = async (name) => {
+    const r = await fetch('/api/portfolios', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, kind: 'portfolio' }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.message || d.error || 'Could not create portfolio.');
+    const created = { ...d.portfolio, items: d.portfolio.items || [] };
+    commit([...portfolios, created]);
+    setActiveId(created.id);
+  };
+
 
   // Fetch Fear & Greed index — server first, browser fallback to alternative.me
   useEffect(() => {
@@ -2225,17 +2252,64 @@ export default function Home() {
     }).sort((a, b) => b.score - a.score);
   }, [selectedTickers, metricsMap, fgIndex]);
 
-  const toggleTicker = (sym) => {
-    const next = selectedTickers.includes(sym)
-      ? selectedTickers.filter(t => t !== sym)
-      : [...selectedTickers, sym];
-    setSelectedTickers(next);
-    if (user && user !== 'DEMO PORTFOLIO') pushTickers(user, next);
+  const toggleTicker = async (sym) => {
+    if (!isSignedIn) return;
+
+    let target;
+    try {
+      target = await ensurePortfolio();
+    } catch (err) {
+      console.error('[portfolios] could not create watchlist:', err.message);
+      setSyncState('offline');
+      return;
+    }
+
+    const has = (target.items || []).some(i => i.symbol === sym);
+
+    // Update locally first (and mirror to cache) so the UI stays responsive and
+    // the change survives a failed request; then reconcile with the server.
+    const optimistic = portfolios.map(p => p.id !== target.id ? p : {
+      ...p,
+      items: has
+        ? p.items.filter(i => i.symbol !== sym)
+        : [...p.items, { symbol: sym, tag: null, dca: false, shares: null, costBasis: null }],
+    });
+    commit(optimistic);
+    setSyncState('saving');
+
+    try {
+      const r = has
+        ? await fetch(`/api/portfolios/${target.id}/items?symbol=${encodeURIComponent(sym)}`, { method: 'DELETE' })
+        : await fetch(`/api/portfolios/${target.id}/items`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symbol: sym }),
+          });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d.message || d.error || 'save rejected');
+      }
+      setSyncState('ok');
+    } catch (err) {
+      console.error('[portfolios] save failed:', err.message);
+      setSyncState('offline');
+    }
   };
 
-  if (authLoading) return <div style={{ background: theme.bg, minHeight: '100vh' }}/>;
+  // Clerk decides what renders: no session means the sign-in screen, full stop.
+  if (!authLoaded) return <div style={{ background: theme.bg, minHeight: '100vh' }}/>;
+  if (!isSignedIn) {
+    return (
+      <>
+        <Head>
+          <title>DCA Anchor — Sign in</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+        </Head>
+        <SignedOut><SignIn theme={theme}/></SignedOut>
+      </>
+    );
+  }
 
-  const onSignin = cur.screen === 'signin';
   const isDashboard = cur.screen === 'dashboard';
 
   const desktopNav = (screen) => {
@@ -2258,14 +2332,13 @@ export default function Home() {
   };
 
   let body;
-  if (cur.screen === 'signin') body = <SignIn theme={theme} onEnter={handleEnter}/>;
-  else if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} onLogout={handleSignOut} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex}/>;
+  if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex}/>;
   else if (cur.screen === 'detail') body = <AssetDetail theme={theme} sym={cur.arg} onBack={back} holdings={holdings} fgIndex={fgIndex}/>;
   else if (cur.screen === 'add') body = <AddTicker theme={theme} onBack={back} selectedTickers={selectedTickers} onToggle={toggleTicker}/>;
   else if (cur.screen === 'glossary') body = <GlossaryScreen theme={theme} onBack={back}/>;
-  else if (cur.screen === 'settings') body = <SettingsScreen theme={theme} onBack={back} onGlossary={() => replace('glossary')} onSignOut={handleSignOut} user={user}/>;
+  else if (cur.screen === 'settings') body = <SettingsScreen theme={theme} onBack={back} onGlossary={() => replace('glossary')} user={userLabel} claim={claim} onImport={runImport}/>;
   else if (cur.screen === 'calculator') body = <CalculatorScreen theme={theme} holdings={holdings}/>;
-  else body = <Dashboard theme={theme} navigate={navigate} onLogout={handleSignOut} user={user} holdings={holdings} loading={loading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex}/>;
+  else body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex}/>;
 
   return (
     <>
@@ -2339,37 +2412,31 @@ export default function Home() {
 
       <div className="dca-root">
         {/* ── Sidebar (desktop only) ── */}
-        {!onSignin && (
-          <aside className="dca-sidebar">
-            <DesktopSidebar theme={theme} activeScreen={cur.screen} onNav={desktopNav} user={user} onLogout={handleSignOut}/>
-          </aside>
-        )}
+        <aside className="dca-sidebar">
+          <DesktopSidebar theme={theme} activeScreen={cur.screen} onNav={desktopNav} user={userLabel}/>
+        </aside>
 
         {/* ── Main area ── */}
-        <div className={onSignin ? '' : 'dca-main'} style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <div className="dca-main" style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
 
-          {!onSignin && (
-            <SyncBanner theme={theme} state={syncState} onRetry={() => pushTickers(user, selectedTickers)}/>
+          <SyncBanner theme={theme} state={syncState} onRetry={() => loadPortfolios()}/>
+
+          {isDashboard && (
+            <PortfolioBar
+              theme={theme}
+              portfolios={portfolios}
+              activeId={activePortfolio?.id ?? null}
+              onSelect={setActiveId}
+              onCreate={createPortfolio}
+            />
           )}
 
-          {/* Desktop header (authenticated only) */}
-          {!onSignin && (
-            <div className="dca-dsk-hdr">
-              <DesktopHeader theme={theme} user={user} onAdd={openAddTicker} onLogout={handleSignOut} fgIndex={fgIndex}/>
-            </div>
-          )}
+          <div className="dca-dsk-hdr">
+            <DesktopHeader theme={theme} user={userLabel} onAdd={openAddTicker} fgIndex={fgIndex}/>
+          </div>
 
           {/* ── Content ── */}
-          {onSignin ? (
-            /* Sign-in: mobile card + desktop centered */
-            <div className="dca-signin-wrap" style={{ flex: 1 }}>
-              <div className="dca-signin-box">
-                <div style={{ height: '100vh' }}>
-                  {body}
-                </div>
-              </div>
-            </div>
-          ) : isDashboard ? (
+          {isDashboard ? (
             /* Dashboard: two-column grid on desktop, single column on mobile */
             <div className="dca-dash-grid">
               {/* Left: holdings table */}
@@ -2381,13 +2448,13 @@ export default function Home() {
                   <NotifBar theme={theme} holdings={holdings}/>
                   <div style={{ marginTop: 16, marginBottom: 16 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: theme.text3, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Holdings — sorted by score</div>
-                    <HoldingsTable theme={theme} holdings={holdings} loading={loading} onPick={sym => navigate('detail', sym)} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed}/>
+                    <HoldingsTable theme={theme} holdings={holdings} loading={loading || dataLoading} onPick={sym => navigate('detail', sym)} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed}/>
                   </div>
                 </div>
               </div>
               {/* Right: charts (desktop only) */}
               <div className="dca-dash-right dca-dsk-only">
-                <DesktopDashboardRight theme={theme} holdings={holdings} loading={loading} navigate={navigate} fgIndex={fgIndex}/>
+                <DesktopDashboardRight theme={theme} holdings={holdings} loading={loading || dataLoading} navigate={navigate} fgIndex={fgIndex}/>
               </div>
             </div>
           ) : (
@@ -2404,11 +2471,9 @@ export default function Home() {
           )}
 
           {/* Mobile bottom nav */}
-          {!onSignin && (
-            <div className="dca-mob-nav">
-              <BottomNav theme={theme} tab={tab} onTab={mobileNav} onAdd={openAddTicker}/>
-            </div>
-          )}
+          <div className="dca-mob-nav">
+            <BottomNav theme={theme} tab={tab} onTab={mobileNav} onAdd={openAddTicker}/>
+          </div>
         </div>
       </div>
     </>
