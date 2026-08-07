@@ -507,6 +507,66 @@ function TransparencyBar({ theme, onLearn }) {
   );
 }
 
+// ─── Local ticker cache ───────────────────────────────────────────────────────
+// Mirrors the server list per username. The list is written here before every
+// network call, so a backend outage degrades to stale-but-present data instead
+// of silently emptying the portfolio.
+
+const TICKERS_KEY = (username) => `dca_tickers_${username}`;
+
+function readCachedTickers(username) {
+  if (!username) return null;
+  try {
+    const raw = localStorage.getItem(TICKERS_KEY(username));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(t => typeof t === 'string') : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedTickers(username, tickers) {
+  if (!username) return;
+  try {
+    localStorage.setItem(TICKERS_KEY(username), JSON.stringify(tickers));
+  } catch {
+    // Private-mode or quota failure — the network write is still attempted.
+  }
+}
+
+function clearCachedTickers(username) {
+  if (!username) return;
+  try { localStorage.removeItem(TICKERS_KEY(username)); } catch {}
+}
+
+// ─── Sync status banner ───────────────────────────────────────────────────────
+// Silence was the real defect: a dead backend looked identical to an empty
+// portfolio. When sync is down the user has to be told, not guessed at.
+
+function SyncBanner({ theme, state, onRetry }) {
+  if (state !== 'offline') return null;
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+      padding: '9px 16px', background: '#7F1D1D', color: '#FEE2E2',
+      fontSize: 12, fontWeight: 600, lineHeight: 1.35, flexShrink: 0,
+    }}>
+      <span style={{ width: 7, height: 7, borderRadius: 99, background: '#FCA5A5', flexShrink: 0 }}/>
+      <span style={{ flex: 1, minWidth: 180 }}>
+        Not syncing — changes are saved on this device only and won&apos;t appear elsewhere.
+      </span>
+      <button
+        onClick={onRetry}
+        style={{
+          border: '1px solid #FCA5A5', background: 'transparent', color: '#FEE2E2',
+          borderRadius: 8, padding: '4px 12px', fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
+        }}
+      >Retry</button>
+    </div>
+  );
+}
+
 // ─── Sign In ──────────────────────────────────────────────────────────────────
 
 function SignIn({ theme, onEnter }) {
@@ -523,13 +583,24 @@ function SignIn({ theme, onEnter }) {
       const r = await fetch(`/api/sync?username=${encodeURIComponent(clean)}`);
       if (r.ok) {
         const d = await r.json();
-        onEnter(clean, d.tickers || []);
-      } else {
-        setStatus('error');
+        const cached = readCachedTickers(clean);
+        const hasCache = !!(cached && cached.length);
+        // An absent server row must not discard a list this device already holds.
+        onEnter(clean, {
+          tickers: d.found ? (d.tickers || []) : (cached || []),
+          synced: true,
+          needsPush: !d.found && hasCache,
+        });
+        return;
       }
-    } catch {
-      setStatus('error');
+      const d = await r.json().catch(() => ({}));
+      console.error('[sync] sign-in read failed:', r.status, d.message || d.error || '');
+    } catch (err) {
+      console.error('[sync] sign-in read failed:', err.message);
     }
+    // Sync is down. Fall back to this device's cache rather than locking the user
+    // out of their own portfolio; the offline banner explains what they're seeing.
+    onEnter(clean, { tickers: readCachedTickers(clean) || [], synced: false });
   };
 
   return (
@@ -1970,60 +2041,106 @@ export default function Home() {
   const [fgIndex, setFgIndex] = useState(null);
   const [loading, setLoading] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState(null);
+  const [syncState, setSyncState] = useState('ok'); // 'ok' | 'saving' | 'offline'
 
   const cur = stack[stack.length - 1];
   const navigate = (screen, arg) => setStack(s => [...s, { screen, arg }]);
   const back = () => setStack(s => s.length > 1 ? s.slice(0, -1) : [{ screen: 'dashboard' }]);
   const replace = (screen) => setStack([{ screen }]);
 
-  // Auto-login from localStorage on mount
+  // The only write path. Mirrors to localStorage before the request so the list
+  // survives a failure, then reports the real outcome instead of assuming success.
+  const pushTickers = async (username, tickers) => {
+    if (!username || username === 'DEMO PORTFOLIO') return false;
+    writeCachedTickers(username, tickers);
+    setSyncState('saving');
+    try {
+      const r = await fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, tickers }),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(`${r.status} ${d.message || d.error || 'save rejected'}`);
+      }
+      setSyncState('ok');
+      return true;
+    } catch (err) {
+      console.error('[sync] save failed:', err.message);
+      setSyncState('offline');
+      return false;
+    }
+  };
+
+  // Restore session on mount. The cached list renders immediately so a slow or
+  // dead backend never shows an empty portfolio; the server copy wins once it lands.
   useEffect(() => {
     const saved = localStorage.getItem('dca_username');
-    if (saved) {
-      fetch(`/api/sync?username=${encodeURIComponent(saved)}`)
-        .then(r => r.ok ? r.json() : Promise.reject())
-        .then(d => {
-          setUser(saved);
-          setSelectedTickers(d.tickers || []);
-          replace('dashboard');
-        })
-        .catch(() => { localStorage.removeItem('dca_username'); })
-        .finally(() => setAuthLoading(false));
-    } else {
-      setAuthLoading(false);
-    }
+    if (!saved) { setAuthLoading(false); return; }
+
+    const cached = readCachedTickers(saved);
+    setUser(saved);
+    setSelectedTickers(cached || []);
+    replace('dashboard');
+
+    (async () => {
+      try {
+        const r = await fetch(`/api/sync?username=${encodeURIComponent(saved)}`);
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}));
+          throw new Error(`${r.status} ${d.message || d.error || 'read rejected'}`);
+        }
+        const d = await r.json();
+        if (d.found) {
+          const remote = Array.isArray(d.tickers) ? d.tickers : [];
+          setSelectedTickers(remote);
+          writeCachedTickers(saved, remote);
+          setSyncState('ok');
+        } else if (cached && cached.length) {
+          // No server row yet, but this device has a list — push it up rather than
+          // letting an absent row blank out real data.
+          await pushTickers(saved, cached);
+        } else {
+          setSyncState('ok');
+        }
+      } catch (err) {
+        console.error('[sync] session restore failed:', err.message);
+        setSyncState('offline');
+      } finally {
+        setAuthLoading(false);
+      }
+    })();
   }, []);
 
-  const handleEnter = (username, tickers = []) => {
+  const handleEnter = (username, payload = {}) => {
+    const { tickers = [], synced = true, needsPush = false } = payload;
     if (username === 'demo') {
       setUser('DEMO PORTFOLIO');
       setSelectedTickers(['BTC', 'ETH', 'NVDA', 'MSFT', 'AAPL', 'GOOGL', 'TSLA', 'AMZN', 'META', 'SOL', 'AMD']);
+      setSyncState('ok');
     } else {
       localStorage.setItem('dca_username', username);
+      writeCachedTickers(username, tickers);
       setUser(username);
       setSelectedTickers(tickers);
+      setSyncState(synced ? 'ok' : 'offline');
+      if (needsPush) pushTickers(username, tickers);
     }
     replace('dashboard');
     setTab('home');
   };
 
   const handleSignOut = () => {
+    // The per-username ticker cache is left in place so an unsynced list isn't
+    // destroyed by signing out; it is re-adopted on next sign-in.
     localStorage.removeItem('dca_username');
     setUser(null);
     setSelectedTickers([]);
+    setSyncState('ok');
     replace('signin');
     setTab('home');
   };
-
-  // Persist tickers to Supabase whenever the list changes
-  useEffect(() => {
-    if (!user || user === 'DEMO PORTFOLIO') return;
-    fetch('/api/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: user, tickers: selectedTickers }),
-    }).catch(() => {});
-  }, [selectedTickers]);
 
   // Fetch Fear & Greed index — server first, browser fallback to alternative.me
   useEffect(() => {
@@ -2109,7 +2226,11 @@ export default function Home() {
   }, [selectedTickers, metricsMap, fgIndex]);
 
   const toggleTicker = (sym) => {
-    setSelectedTickers(prev => prev.includes(sym) ? prev.filter(t => t !== sym) : [...prev, sym]);
+    const next = selectedTickers.includes(sym)
+      ? selectedTickers.filter(t => t !== sym)
+      : [...selectedTickers, sym];
+    setSelectedTickers(next);
+    if (user && user !== 'DEMO PORTFOLIO') pushTickers(user, next);
   };
 
   if (authLoading) return <div style={{ background: theme.bg, minHeight: '100vh' }}/>;
@@ -2226,6 +2347,10 @@ export default function Home() {
 
         {/* ── Main area ── */}
         <div className={onSignin ? '' : 'dca-main'} style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+
+          {!onSignin && (
+            <SyncBanner theme={theme} state={syncState} onRetry={() => pushTickers(user, selectedTickers)}/>
+          )}
 
           {/* Desktop header (authenticated only) */}
           {!onSignin && (

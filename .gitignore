@@ -1,3 +1,7 @@
 .vercel
 node_modules/
 .next/
+
+# Local env (never commit real keys)
+.env
+.env.local
