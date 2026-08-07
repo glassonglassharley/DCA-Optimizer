@@ -672,7 +672,7 @@ function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefre
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <StaxHeader theme={theme} user={userLabel} fgIndex={fgIndex} onAdd={() => navigate('add')} onGlossary={() => navigate('glossary')} onLogout={onLogout}/>
+      <StaxHeader theme={theme} user={user} fgIndex={fgIndex} onAdd={() => navigate('add')} onGlossary={() => navigate('glossary')} onLogout={onLogout}/>
       <NotifBar theme={theme} holdings={holdings}/>
       <TransparencyBar theme={theme} onLearn={() => navigate('glossary')}/>
 
@@ -703,7 +703,7 @@ function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefre
         </div>
       )}
 
-      <HoldingsTable theme={theme} holdings={holdings} loading={loading || dataLoading} onPick={sym => navigate('detail', sym)} onRefresh={onRefresh} lastRefreshed={lastRefreshed}/>
+      <HoldingsTable theme={theme} holdings={holdings} loading={loading} onPick={sym => navigate('detail', sym)} onRefresh={onRefresh} lastRefreshed={lastRefreshed}/>
 
       {holdings.length === 0 && !loading && (
         <div style={{ textAlign: 'center', padding: '60px 20px', color: theme.text3 }}>
