@@ -14,8 +14,9 @@ const clerkAppearance = {
     fontFamily: '"Geist", system-ui, sans-serif',
   },
   elements: {
+    // The footer carries Clerk's "Sign up" link — hiding it leaves no way to
+    // create an account, so it stays visible.
     card: { border: '1px solid #1F2A3E', boxShadow: 'none' },
-    footer: { display: 'none' },
   },
 };
 

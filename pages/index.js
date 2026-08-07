@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Head from 'next/head';
-import { SignIn as ClerkSignIn, SignedIn, SignedOut, UserButton, useUser } from '@clerk/nextjs';
+import { SignIn as ClerkSignIn, SignedOut, UserButton, useUser } from '@clerk/nextjs';
 import { Ic } from '../components/icons';
 import {
   TICKER_COLORS, RATING_STYLES, RATING_LABELS, TAG_STYLES, THEMES, GLOSSARY,
@@ -638,7 +638,7 @@ function SignIn({ theme }) {
 
       <div style={{ position: 'relative', padding: '48px 28px 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <div style={{ width: 76, height: 76, borderRadius: 22, background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 12px 30px ${theme.brand}55` }}>
-          {Ic.layers(34, '#fff')}
+          {Ic.logo(34, '#fff')}
         </div>
         <div style={{ fontSize: 30, fontWeight: 800, color: theme.text, letterSpacing: '-.03em', marginTop: 18 }}>DCA Anchor</div>
         <div style={{ fontSize: 13.5, color: theme.text3, marginTop: 6, textAlign: 'center', lineHeight: 1.5, maxWidth: 300 }}>
@@ -649,7 +649,11 @@ function SignIn({ theme }) {
       <div style={{ position: 'relative', flex: 1, display: 'flex', justifyContent: 'center', padding: '28px 16px 0' }}>
         {/* routing="hash" keeps Clerk's sub-steps inside this single-page shell,
             so no /sign-in or /sign-up route files are needed. */}
-        <ClerkSignIn routing="hash" signUpUrl="#/sign-up"/>
+        {/* No signUpUrl: with hash routing there is no <SignUp> mounted at a
+            second hash, so an explicit one would send the sign-up link nowhere.
+            Omitting it lets Clerk use the account portal, which the dev
+            instance provides automatically. */}
+        <ClerkSignIn routing="hash"/>
       </div>
 
       <div style={{ position: 'relative', fontSize: 10, color: theme.text3, textAlign: 'center', lineHeight: 1.5, padding: '20px 24px 24px' }}>
