@@ -458,11 +458,17 @@ function NotifBar({ theme, holdings }) {
 
   const [i, setI] = useState(0);
   useEffect(() => {
+    // Switching to a portfolio with fewer alerts shortens this list, and the
+    // index kept rotating against the old length — so it could point past the
+    // end. Restart from the top whenever the list resizes.
+    setI(0);
     const t = setInterval(() => setI(v => (v + 1) % items.length), 3200);
     return () => clearInterval(t);
   }, [items.length]);
 
-  const cur = items[i];
+  // Effects run after render, so the shrinking render itself still has to be
+  // survivable: reading past the end here unmounts the whole tree.
+  const cur = items[i] || items[0];
   return (
     <div style={{
       margin: '2px 20px 10px', padding: '8px 12px',
@@ -528,71 +534,161 @@ function writeCachedPortfolios(userId, portfolios) {
   }
 }
 
+// Which portfolio the user was last looking at. Keyed by Clerk user id so two
+// accounts on one browser don't inherit each other's selection.
+const ACTIVE_KEY = (userId) => `dca_active_portfolio_${userId}`;
+
+function readActiveId(userId) {
+  if (!userId) return null;
+  try {
+    return localStorage.getItem(ACTIVE_KEY(userId)) || null;
+  } catch {
+    return null;
+  }
+}
+
+function writeActiveId(userId, id) {
+  if (!userId) return;
+  try {
+    if (id) localStorage.setItem(ACTIVE_KEY(userId), id);
+    else localStorage.removeItem(ACTIVE_KEY(userId));
+  } catch {
+    // Selection just won't survive reload; not worth failing the switch over.
+  }
+}
+
 // ─── Portfolio switcher ───────────────────────────────────────────────────────
 
-function PortfolioBar({ theme, portfolios, activeId, onSelect, onCreate }) {
-  const [adding, setAdding] = useState(false);
+function PortfolioBar({ theme, portfolios, activeId, onSelect, onCreate, onRename, onDelete }) {
+  // 'idle' | 'creating' | 'renaming' | 'confirmDelete'
+  const [mode, setMode] = useState('idle');
+  const [menuOpen, setMenuOpen] = useState(false);
   const [name, setName] = useState('');
   const [error, setError] = useState(null);
 
-  if (!portfolios.length && !adding) return null;
+  const active = portfolios.find(p => p.id === activeId) || null;
+  // Requirement: an account always keeps at least one portfolio.
+  const canDelete = portfolios.length > 1;
 
-  const submit = async () => {
-    const clean = name.trim();
-    if (!clean) return;
-    try {
-      await onCreate(clean);
-      setName('');
-      setAdding(false);
-      setError(null);
-    } catch (err) {
-      setError(err.message);
-    }
+  if (!portfolios.length && mode !== 'creating') return null;
+
+  const reset = () => { setMode('idle'); setMenuOpen(false); setName(''); setError(null); };
+
+  const run = async (fn) => {
+    try { await fn(); reset(); }
+    catch (err) { setError(err.message); }
   };
+
+  const submitCreate = () => { const c = name.trim(); if (c) run(() => onCreate(c)); };
+  const submitRename = () => { const c = name.trim(); if (c && active) run(() => onRename(active.id, c)); };
+
+  const editing = mode === 'creating' || mode === 'renaming';
+  const btn = (extra = {}) => ({
+    height: 28, padding: '0 10px', borderRadius: 8, fontSize: 11.5, cursor: 'pointer', ...extra,
+  });
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px 0', flexWrap: 'wrap' }}>
       {portfolios.map(p => {
         const on = p.id === activeId;
         return (
-          <button
-            key={p.id}
-            onClick={() => onSelect(p.id)}
-            style={{
-              height: 28, padding: '0 11px', borderRadius: 8, cursor: 'pointer',
-              border: `1px solid ${on ? theme.brand : theme.line2}`,
-              background: on ? theme.brand + '22' : theme.pillBg,
-              color: on ? theme.brand : theme.text2,
-              fontSize: 11.5, fontWeight: on ? 700 : 500, whiteSpace: 'nowrap',
-            }}
-          >
-            {p.name}
-            <span style={{ marginLeft: 6, opacity: .65, fontFamily: 'var(--font-mono)' }}>{(p.items || []).length}</span>
-          </button>
+          <span key={p.id} style={{ display: 'inline-flex', alignItems: 'center', position: 'relative' }}>
+            <button
+              onClick={() => { onSelect(p.id); setMenuOpen(false); setMode('idle'); }}
+              style={btn({
+                padding: on ? '0 4px 0 11px' : '0 11px',
+                border: `1px solid ${on ? theme.brand : theme.line2}`,
+                background: on ? theme.brand + '22' : theme.pillBg,
+                color: on ? theme.brand : theme.text2,
+                fontWeight: on ? 700 : 500, whiteSpace: 'nowrap',
+                borderTopRightRadius: on ? 0 : 8, borderBottomRightRadius: on ? 0 : 8,
+              })}
+            >
+              {p.name}
+              <span style={{ marginLeft: 6, opacity: .65, fontFamily: 'var(--font-mono)' }}>{(p.items || []).length}</span>
+            </button>
+
+            {/* Manage menu lives on the active tab only, so it never implies
+                acting on a portfolio you aren't looking at. */}
+            {on && (
+              <button
+                aria-label={`Manage ${p.name}`}
+                onClick={() => { setMenuOpen(o => !o); setMode('idle'); setError(null); }}
+                style={btn({
+                  padding: '0 8px', marginLeft: -1,
+                  border: `1px solid ${theme.brand}`, borderLeft: `1px solid ${theme.brand}55`,
+                  background: theme.brand + '22', color: theme.brand, fontWeight: 700,
+                  borderTopLeftRadius: 0, borderBottomLeftRadius: 0,
+                })}
+              >⋯</button>
+            )}
+
+            {on && menuOpen && (
+              <div style={{
+                position: 'absolute', top: 32, right: 0, zIndex: 30, minWidth: 148,
+                background: theme.card, border: `1px solid ${theme.line2}`, borderRadius: 10,
+                boxShadow: '0 10px 30px rgba(0,0,0,.45)', overflow: 'hidden',
+              }}>
+                <button
+                  onClick={() => { setMode('renaming'); setName(p.name); setMenuOpen(false); setError(null); }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', fontSize: 12, background: 'transparent', border: 'none', color: theme.text, cursor: 'pointer' }}
+                >Rename</button>
+                <button
+                  disabled={!canDelete}
+                  title={canDelete ? undefined : 'You need at least one portfolio.'}
+                  onClick={() => { if (canDelete) { setMode('confirmDelete'); setMenuOpen(false); setError(null); } }}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', fontSize: 12,
+                    background: 'transparent', border: 'none', borderTop: `1px solid ${theme.line}`,
+                    color: canDelete ? '#F87171' : theme.text3,
+                    cursor: canDelete ? 'pointer' : 'not-allowed',
+                  }}
+                >Delete</button>
+              </div>
+            )}
+          </span>
         );
       })}
 
-      {adding ? (
+      {editing ? (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
           <input
             autoFocus
             value={name}
             maxLength={40}
             onChange={e => { setName(e.target.value); if (error) setError(null); }}
-            onKeyDown={e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') { setAdding(false); setName(''); setError(null); } }}
-            placeholder="Portfolio name"
+            onKeyDown={e => {
+              if (e.key === 'Enter') (mode === 'renaming' ? submitRename : submitCreate)();
+              if (e.key === 'Escape') reset();
+            }}
+            placeholder={mode === 'renaming' ? 'New name' : 'Portfolio name'}
             style={{
               height: 28, width: 130, borderRadius: 8, padding: '0 9px',
               border: `1px solid ${error ? '#EF4444' : theme.line2}`, background: theme.card,
               color: theme.text, fontSize: 11.5, outline: 'none',
             }}
           />
-          <button onClick={submit} style={{ height: 28, padding: '0 10px', borderRadius: 8, border: 'none', background: theme.brand, color: '#fff', fontSize: 11.5, fontWeight: 700, cursor: 'pointer' }}>Add</button>
+          <button
+            onClick={mode === 'renaming' ? submitRename : submitCreate}
+            style={btn({ border: 'none', background: theme.brand, color: '#fff', fontWeight: 700 })}
+          >{mode === 'renaming' ? 'Save' : 'Add'}</button>
+          <button onClick={reset} style={btn({ border: `1px solid ${theme.line2}`, background: 'transparent', color: theme.text3 })}>Cancel</button>
+        </span>
+      ) : mode === 'confirmDelete' && active ? (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 11.5, color: theme.text2 }}>
+            Delete “{active.name}” and its {(active.items || []).length} tickers?
+          </span>
+          <button
+            onClick={() => run(() => onDelete(active.id))}
+            style={btn({ border: 'none', background: '#EF4444', color: '#fff', fontWeight: 700 })}
+          >Delete</button>
+          <button onClick={reset} style={btn({ border: `1px solid ${theme.line2}`, background: 'transparent', color: theme.text3 })}>Cancel</button>
         </span>
       ) : (
         <button
-          onClick={() => setAdding(true)}
-          style={{ height: 28, padding: '0 10px', borderRadius: 8, border: `1px dashed ${theme.line2}`, background: 'transparent', color: theme.text3, fontSize: 11.5, fontWeight: 600, cursor: 'pointer' }}
+          onClick={() => { setMode('creating'); setName(''); setMenuOpen(false); setError(null); }}
+          style={btn({ border: `1px dashed ${theme.line2}`, background: 'transparent', color: theme.text3, fontWeight: 600 })}
         >+ New</button>
       )}
 
@@ -665,7 +761,7 @@ function SignIn({ theme }) {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefresh, lastRefreshed, fgIndex }) {
+function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefresh, lastRefreshed, fgIndex, onDelete }) {
   const [focused, setFocused] = useState(null);
   const top = holdings[0];
   const chartData = holdings;
@@ -703,7 +799,7 @@ function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefre
         </div>
       )}
 
-      <HoldingsTable theme={theme} holdings={holdings} loading={loading} onPick={sym => navigate('detail', sym)} onRefresh={onRefresh} lastRefreshed={lastRefreshed}/>
+      <HoldingsTable theme={theme} holdings={holdings} loading={loading} onPick={sym => navigate('detail', sym)} onRefresh={onRefresh} lastRefreshed={lastRefreshed} onDelete={onDelete}/>
 
       {holdings.length === 0 && !loading && (
         <div style={{ textAlign: 'center', padding: '60px 20px', color: theme.text3 }}>
@@ -767,7 +863,7 @@ function TopPickCard({ theme, holding: h, onOpen }) {
   );
 }
 
-function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefreshed }) {
+function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefreshed, onDelete }) {
   const minsAgo = lastRefreshed ? Math.floor((Date.now() - lastRefreshed) / 60000) : null;
   return (
     <div style={{ padding: '0 16px' }}>
@@ -775,7 +871,10 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
         <div style={{ padding: '14px 16px 8px', display: 'flex', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: 14.5, fontWeight: 700, color: theme.text }}>Holdings</div>
-            <div style={{ fontSize: 10.5, color: theme.text3, marginTop: 1 }}>{holdings.length} tickers · sorted by score</div>
+            <div style={{ fontSize: 10.5, color: theme.text3, marginTop: 1 }}>
+              {holdings.length} tickers · sorted by score
+              {onDelete && holdings.length > 0 && ' · swipe or double-click a row to remove'}
+            </div>
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
             {minsAgo != null && <span style={{ fontSize: 10, color: theme.text3 }}>Updated {minsAgo === 0 ? 'just now' : `${minsAgo}m ago`}</span>}
@@ -793,7 +892,7 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
           <div style={{ padding: 24, textAlign: 'center', color: theme.text3, fontSize: 12 }}>Loading data…</div>
         )}
         {holdings.map((h, i) => (
-          <HoldingRow key={h.sym} h={h} theme={theme} last={i === holdings.length - 1} onClick={() => onPick(h.sym)}/>
+          <HoldingRow key={h.sym} h={h} theme={theme} last={i === holdings.length - 1} onClick={() => onPick(h.sym)} onDelete={onDelete}/>
         ))}
         <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.6, paddingTop: 12, borderTop: '1px solid #1e2433', margin: '0 16px 16px' }}>
           <div>* RSI — Relative Strength Index (14-day). ≤30 oversold · ≥70 overbought</div>
@@ -805,17 +904,120 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
   );
 }
 
-function HoldingRow({ h, theme, last, onClick }) {
+// How far a row must travel before the swipe counts as a delete.
+const SWIPE_DELETE_PX = 88;
+
+function HoldingRow({ h, theme, last, onClick, onDelete }) {
   const c = getColor(h.sym);
   const d = h.ma200dist;
   const distColor = d == null ? theme.text3 : d < 0 ? '#10B981' : d > 20 ? '#EF4444' : theme.text;
   const distLabel = d == null ? '—' : (d >= 0 ? '+' : '') + d.toFixed(1) + '%';
+
+  const [dx, setDx] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const [exiting, setExiting] = useState(false);
+  // Drag bookkeeping that must not trigger re-renders.
+  const drag = useRef(null);
+  const swiped = useRef(false);
+  const touched = useRef(false);
+  const clickTimer = useRef(null);
+
+  useEffect(() => () => clearTimeout(clickTimer.current), []);
+
+  const armed = Math.abs(dx) >= SWIPE_DELETE_PX;
+
+  const remove = () => {
+    if (!onDelete || exiting) return;
+    setExiting(true);
+    // Fling the row off the side it was dragged toward, then drop it from the list.
+    setDx(dx >= 0 ? 480 : -480);
+    setTimeout(() => onDelete(h.sym), 170);
+  };
+
+  const onTouchStart = (e) => {
+    if (exiting) return;
+    touched.current = true;
+    swiped.current = false;
+    const t = e.touches[0];
+    drag.current = { x: t.clientX, y: t.clientY, axis: null };
+    setDragging(true);
+  };
+
+  const onTouchMove = (e) => {
+    if (!drag.current || exiting) return;
+    const t = e.touches[0];
+    const ddx = t.clientX - drag.current.x;
+    const ddy = t.clientY - drag.current.y;
+    // Decide once whether this gesture is a horizontal swipe or a vertical
+    // scroll, so dragging the list never drags a row sideways.
+    if (drag.current.axis === null) {
+      if (Math.abs(ddx) < 6 && Math.abs(ddy) < 6) return;
+      drag.current.axis = Math.abs(ddx) > Math.abs(ddy) ? 'x' : 'y';
+    }
+    if (drag.current.axis !== 'x') return;
+    swiped.current = true;
+    setDx(ddx);
+  };
+
+  const onTouchEnd = () => {
+    setDragging(false);
+    const axis = drag.current?.axis;
+    drag.current = null;
+    if (axis === 'x' && Math.abs(dx) >= SWIPE_DELETE_PX) remove();
+    else setDx(0);
+  };
+
+  const handleClick = () => {
+    // A swipe that ended on this row is not a tap.
+    if (swiped.current) { swiped.current = false; return; }
+    // Touch has the swipe gesture, so it needs no double-tap delay.
+    if (touched.current) { touched.current = false; onClick?.(); return; }
+    if (clickTimer.current) return; // second click of a double-click
+    clickTimer.current = setTimeout(() => { clickTimer.current = null; onClick?.(); }, 240);
+  };
+
+  const handleDoubleClick = () => {
+    clearTimeout(clickTimer.current);
+    clickTimer.current = null;
+    remove();
+  };
+
   return (
-    <div onClick={onClick} style={{
-      display: 'grid', gridTemplateColumns: '1.4fr 62px 30px 36px 48px 1fr', gap: 5, alignItems: 'center',
-      padding: '11px 14px', borderBottom: last ? 'none' : `1px solid ${theme.line}`,
-      cursor: 'pointer',
-    }}>
+    <div style={{ position: 'relative', overflow: 'hidden', borderBottom: last ? 'none' : `1px solid ${theme.line}` }}>
+      {/* Delete affordance revealed underneath as the row slides away. */}
+      <div aria-hidden style={{
+        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between', padding: '0 18px',
+        background: armed ? '#EF4444' : '#7F1D1D',
+        opacity: Math.min(1, Math.abs(dx) / SWIPE_DELETE_PX),
+        transition: dragging ? 'background .12s' : 'background .12s, opacity .18s',
+      }}>
+        {[0, 1].map(i => (
+          <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, letterSpacing: '.06em', color: '#fff' }}>
+            {Ic.close(13, '#fff')} REMOVE
+          </span>
+        ))}
+      </div>
+
+      <div
+        onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchEnd}
+        title="Double-click to remove"
+        style={{
+          display: 'grid', gridTemplateColumns: '1.4fr 62px 30px 36px 48px 1fr', gap: 5, alignItems: 'center',
+          padding: '11px 14px',
+          cursor: 'pointer',
+          position: 'relative',
+          background: theme.card || theme.bg,
+          transform: `translateX(${dx}px)`,
+          transition: dragging ? 'none' : 'transform .18s ease-out',
+          touchAction: 'pan-y',
+          userSelect: 'none',
+        }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
         <TickerDot sym={h.sym} theme={theme} size={26}/>
         <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -843,6 +1045,7 @@ function HoldingRow({ h, theme, last, onClick }) {
             {h.chg >= 0 ? '▲' : '▼'} {Math.abs(h.chg).toFixed(2)}%
           </div>
         )}
+        </div>
       </div>
     </div>
   );
@@ -2073,6 +2276,23 @@ export default function Home() {
     writeCachedPortfolios(userId, next);
   }, [userId]);
 
+  /**
+   * Whatever the user is already on wins as long as it still exists; otherwise
+   * fall back to the selection saved from a previous visit, then to the first
+   * portfolio. This is what makes the active tab survive a reload.
+   */
+  const resolveActive = useCallback((list, prev) => {
+    if (prev && list.some(p => p.id === prev)) return prev;
+    const saved = readActiveId(userId);
+    if (saved && list.some(p => p.id === saved)) return saved;
+    return list[0]?.id ?? null;
+  }, [userId]);
+
+  const selectActive = useCallback((id) => {
+    setActiveId(id);
+    writeActiveId(userId, id);
+  }, [userId]);
+
   const loadPortfolios = useCallback(async ({ silent = false } = {}) => {
     if (!userId) return;
     if (!silent) setDataLoading(true);
@@ -2085,7 +2305,7 @@ export default function Home() {
       const d = await r.json();
       const list = Array.isArray(d.portfolios) ? d.portfolios : [];
       commit(list);
-      setActiveId(prev => (list.some(p => p.id === prev) ? prev : (list[0]?.id ?? null)));
+      setActiveId(prev => resolveActive(list, prev));
       setSyncState('ok');
     } catch (err) {
       console.error('[portfolios] load failed:', err.message);
@@ -2093,7 +2313,7 @@ export default function Home() {
     } finally {
       setDataLoading(false);
     }
-  }, [userId, commit]);
+  }, [userId, commit, resolveActive]);
 
   // Hydrate from cache first so a slow or failed request never shows an empty
   // portfolio, then reconcile with the server.
@@ -2108,10 +2328,10 @@ export default function Home() {
     const cached = readCachedPortfolios(userId);
     if (cached && cached.length) {
       setPortfolios(cached);
-      setActiveId(prev => prev ?? cached[0]?.id ?? null);
+      setActiveId(prev => resolveActive(cached, prev));
     }
     loadPortfolios({ silent: !!(cached && cached.length) });
-  }, [authLoaded, isSignedIn, userId, loadPortfolios]);
+  }, [authLoaded, isSignedIn, userId, loadPortfolios, resolveActive]);
 
   // Whether the one-time legacy import is still on the table.
   useEffect(() => {
@@ -2132,7 +2352,7 @@ export default function Home() {
       if (!r.ok) throw new Error(d.message || d.error || 'Import failed.');
       const list = Array.isArray(d.portfolios) ? d.portfolios : [];
       commit(list);
-      setActiveId(list[0]?.id ?? null);
+      selectActive(list[0]?.id ?? null);
       setClaim({ available: false, busy: false, error: null });
       setSyncState('ok');
       replace('dashboard');
@@ -2155,7 +2375,7 @@ export default function Home() {
     if (!r.ok) throw new Error(d.message || d.error || 'Could not create a watchlist.');
     const created = { ...d.portfolio, items: d.portfolio.items || [] };
     commit([...portfolios, created]);
-    setActiveId(created.id);
+    selectActive(created.id);
     return created;
   };
 
@@ -2169,7 +2389,33 @@ export default function Home() {
     if (!r.ok) throw new Error(d.message || d.error || 'Could not create portfolio.');
     const created = { ...d.portfolio, items: d.portfolio.items || [] };
     commit([...portfolios, created]);
-    setActiveId(created.id);
+    selectActive(created.id);
+  };
+
+  const renamePortfolio = async (id, name) => {
+    const r = await fetch(`/api/portfolios/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.message || d.error || 'Could not rename portfolio.');
+    commit(portfolios.map(p => p.id === id ? { ...p, name: d.portfolio?.name ?? name } : p));
+  };
+
+  const deletePortfolio = async (id) => {
+    // Mirrors the server guard so the last portfolio can't be removed even if
+    // the control is somehow reachable.
+    if (portfolios.length <= 1) throw new Error('You need at least one portfolio.');
+
+    const remaining = portfolios.filter(p => p.id !== id);
+    const r = await fetch(`/api/portfolios/${id}`, { method: 'DELETE' });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.message || d.error || 'Could not delete portfolio.');
+
+    commit(remaining);
+    // Deleting whatever was on screen has to land somewhere real.
+    if (id === activePortfolio?.id) selectActive(remaining[0]?.id ?? null);
   };
 
 
@@ -2300,6 +2546,38 @@ export default function Home() {
     }
   };
 
+  /**
+   * Delete-only counterpart to toggleTicker, used by the swipe/double-click
+   * gesture. Kept separate so a gesture that fires on an already-removed row
+   * can never toggle the symbol back on.
+   */
+  const removeTicker = async (sym) => {
+    if (!isSignedIn) return;
+    const target = activePortfolio;
+    if (!target || !(target.items || []).some(i => i.symbol === sym)) return;
+
+    commit(portfolios.map(p => p.id !== target.id ? p : {
+      ...p,
+      items: p.items.filter(i => i.symbol !== sym),
+    }));
+    setSyncState('saving');
+
+    try {
+      const r = await fetch(`/api/portfolios/${target.id}/items?symbol=${encodeURIComponent(sym)}`, { method: 'DELETE' });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d.message || d.error || 'delete rejected');
+      }
+      setSyncState('ok');
+    } catch (err) {
+      // The row is already gone from the UI; re-read the server so the list
+      // reflects what actually persisted rather than an optimistic lie.
+      console.error('[portfolios] delete failed:', err.message);
+      setSyncState('offline');
+      loadPortfolios({ silent: true });
+    }
+  };
+
   // Clerk decides what renders: no session means the sign-in screen, full stop.
   if (!authLoaded) return <div style={{ background: theme.bg, minHeight: '100vh' }}/>;
   if (!isSignedIn) {
@@ -2336,13 +2614,13 @@ export default function Home() {
   };
 
   let body;
-  if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex}/>;
+  if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker}/>;
   else if (cur.screen === 'detail') body = <AssetDetail theme={theme} sym={cur.arg} onBack={back} holdings={holdings} fgIndex={fgIndex}/>;
   else if (cur.screen === 'add') body = <AddTicker theme={theme} onBack={back} selectedTickers={selectedTickers} onToggle={toggleTicker}/>;
   else if (cur.screen === 'glossary') body = <GlossaryScreen theme={theme} onBack={back}/>;
   else if (cur.screen === 'settings') body = <SettingsScreen theme={theme} onBack={back} onGlossary={() => replace('glossary')} user={userLabel} claim={claim} onImport={runImport}/>;
   else if (cur.screen === 'calculator') body = <CalculatorScreen theme={theme} holdings={holdings}/>;
-  else body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex}/>;
+  else body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker}/>;
 
   return (
     <>
@@ -2430,8 +2708,10 @@ export default function Home() {
               theme={theme}
               portfolios={portfolios}
               activeId={activePortfolio?.id ?? null}
-              onSelect={setActiveId}
+              onSelect={selectActive}
               onCreate={createPortfolio}
+              onRename={renamePortfolio}
+              onDelete={deletePortfolio}
             />
           )}
 
@@ -2452,7 +2732,7 @@ export default function Home() {
                   <NotifBar theme={theme} holdings={holdings}/>
                   <div style={{ marginTop: 16, marginBottom: 16 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: theme.text3, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Holdings — sorted by score</div>
-                    <HoldingsTable theme={theme} holdings={holdings} loading={loading || dataLoading} onPick={sym => navigate('detail', sym)} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed}/>
+                    <HoldingsTable theme={theme} holdings={holdings} loading={loading || dataLoading} onPick={sym => navigate('detail', sym)} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} onDelete={removeTicker}/>
                   </div>
                 </div>
               </div>
