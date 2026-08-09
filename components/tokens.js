@@ -97,6 +97,86 @@ export const SCORE_METHODOLOGY = {
   ],
 };
 
+/* ── Signal-coverage presentation ──────────────────────────────────────────
+ * Display only. None of this touches the score, rating, ranking, weights or
+ * normalization — it describes how much of the model was populated, which is
+ * model-input coverage, NOT statistical confidence.
+ */
+
+export const COVERAGE_TIERS = [
+  { min: 90, key: 'strong',  label: 'Strong coverage'  },
+  { min: 75, key: 'good',    label: 'Good coverage'    },
+  { min: 50, key: 'limited', label: 'Limited coverage' },
+  { min: 0,  key: 'low',     label: 'Low coverage'     },
+];
+
+/** Below this, the UI marks the score as resting on partial data. */
+export const COVERAGE_PARTIAL_BELOW = 75;
+
+export const COVERAGE_TOOLTIP =
+  'Coverage is the percentage of the scoring model currently backed by available signals. ' +
+  'Missing signals are excluded and remaining weights are renormalized. ' +
+  'It describes model inputs, not statistical confidence.';
+
+const covNum = (c) => (typeof c === 'number' && Number.isFinite(c) ? Math.max(0, Math.min(100, c)) : null);
+
+/** True when the score came from at least one real signal. */
+export function hasUsableScore(h) {
+  return covNum(h && h.coverage) > 0;
+}
+
+/** Only assets with a real signal behind them may win a ranking slot. */
+export function isRankable(h) {
+  return hasUsableScore(h);
+}
+
+export function coverageTier(coverage) {
+  const c = covNum(coverage);
+  if (c == null) return COVERAGE_TIERS[COVERAGE_TIERS.length - 1];
+  return COVERAGE_TIERS.find(t => c >= t.min) || COVERAGE_TIERS[COVERAGE_TIERS.length - 1];
+}
+
+export function coverageLabel(coverage) {
+  return coverageTier(coverage).label;
+}
+
+export function formatCoverage(coverage) {
+  const c = covNum(coverage);
+  return c == null ? '—' : `${Math.round(c)}%`;
+}
+
+/** Muted by default; the partial tier gets a warm tint, never an error red. */
+export function coverageColor(coverage, theme) {
+  const c = covNum(coverage);
+  if (c == null || c === 0) return theme.text3;
+  return c < COVERAGE_PARTIAL_BELOW ? '#F59E0B' : theme.text3;
+}
+
+/**
+ * How a score should be presented. At 0% coverage scoreAsset() still returns
+ * 5.0 as its safe mathematical fallback, but that is not a market reading and
+ * must never be shown as a neutral one.
+ */
+export function scoreDisplay(h) {
+  const c = covNum(h && h.coverage);
+  if (!c) {
+    return {
+      usable: false, coverage: 0,
+      score: '—', rating: 'Insufficient data',
+      coverageText: 'No scoring signals available',
+      partial: false,
+    };
+  }
+  return {
+    usable: true, coverage: c,
+    score: typeof h.score === 'number' ? h.score.toFixed(1) : String(h.score ?? '—'),
+    rating: h.displayRating || h.rating || null,
+    coverageText: `${formatCoverage(c)} coverage`,
+    partial: c < COVERAGE_PARTIAL_BELOW,
+    label: coverageLabel(c),
+  };
+}
+
 export function ratingForScore(score) {
   if (score >= 8) return 'STRONG BUY';
   if (score >= 6) return 'BUY';

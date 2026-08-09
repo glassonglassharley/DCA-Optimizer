@@ -7,6 +7,8 @@ import {
   ACCOUNT_TYPES, SCORE_METHODOLOGY, getColor, fgColor, fgLabel, rsiSignalColor,
   shade, fmtPrice, scoreAsset, ratingForScore, ratingRangeText,
   scoreContributions, scoreTooltip,
+  scoreDisplay, coverageLabel, coverageColor, formatCoverage, isRankable,
+  COVERAGE_TOOLTIP,
 } from '../components/tokens';
 
 // ─── Ticker disambiguation ────────────────────────────────────────────────────
@@ -598,14 +600,19 @@ function MethodologyDrawer({ theme, open, onClose, holding }) {
 
 function PortfolioSummary({ theme, holdings, onMethodology }) {
   if (!holdings.length) return null;
-  const avg = holdings.reduce((s, h) => s + (h.score || 0), 0) / holdings.length;
-  const high = holdings.filter(h => h.score >= 8).length;
-  const favorable = holdings.filter(h => h.score >= 6 && h.score < 8).length;
-  const extended = holdings.filter(h => h.score < 4).length;
-  const best = holdings[0];
+  // A 0%-coverage asset scores 5.0 only as a mathematical fallback. Letting it
+  // into these statistics would drag the average toward neutral and let an
+  // asset with no data win "best setup".
+  const scored = holdings.filter(isRankable);
+  const avg = scored.length ? scored.reduce((s, h) => s + (h.score || 0), 0) / scored.length : null;
+  const high = scored.filter(h => h.score >= 8).length;
+  const favorable = scored.filter(h => h.score >= 6 && h.score < 8).length;
+  const extended = scored.filter(h => h.score < 4).length;
+  const best = scored[0];
+  const unscored = holdings.length - scored.length;
   const mostExtended = [...holdings].sort((a, b) => (b.ma200dist ?? -999) - (a.ma200dist ?? -999))[0];
   const cell = (label, value, tint) => <div style={{ padding: '10px 12px', borderRadius: 12, background: theme.card, border: `1px solid ${theme.line}` }}><div style={{ fontSize: 9.5, color: theme.text3, letterSpacing: '.09em', fontWeight: 800, textTransform: 'uppercase' }}>{label}</div><div style={{ marginTop: 3, fontSize: 15, color: tint || theme.text, fontWeight: 800, fontFamily: 'var(--font-mono)' }}>{value}</div></div>;
-  return <div style={{ padding: '0 16px' }}><Card theme={theme} style={{ display: 'grid', gap: 10 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><SectionHead theme={theme} title="Portfolio snapshot" sub="Current DCA signal mix"/><div style={{ marginLeft: 'auto' }}><ScoreInfoBtn theme={theme} onClick={onMethodology}/></div></div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 8 }}>{cell('Avg score', avg.toFixed(1), theme.brand)}{cell('Best setup', best?.sym || '—', getColor(best?.sym || ''))}{cell('High/Fav', `${high}/${favorable}`, '#4ADE80')}{cell('Extended', extended, extended ? '#F87171' : theme.text3)}</div>{mostExtended?.ma200dist != null && <div style={{ fontSize: 11.5, color: theme.text3 }}>Most extended vs 200SMA: <b style={{ color: theme.text }}>{mostExtended.sym}</b> at +{mostExtended.ma200dist.toFixed(1)}%.</div>}</Card></div>;
+  return <div style={{ padding: '0 16px' }}><Card theme={theme} style={{ display: 'grid', gap: 10 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><SectionHead theme={theme} title="Portfolio snapshot" sub="Current DCA signal mix"/><div style={{ marginLeft: 'auto' }}><ScoreInfoBtn theme={theme} onClick={onMethodology}/></div></div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 8 }}>{cell('Avg score', avg == null ? '—' : avg.toFixed(1), theme.brand)}{cell('Best setup', best?.sym || '—', getColor(best?.sym || ''))}{cell('High/Fav', scored.length ? `${high}/${favorable}` : '—', '#4ADE80')}{cell('Extended', scored.length ? extended : '—', extended ? '#F87171' : theme.text3)}</div>{unscored > 0 && <div title={COVERAGE_TOOLTIP} style={{ fontSize: 11.5, color: theme.text3 }}>{unscored} asset{unscored > 1 ? 's' : ''} excluded — no scoring signals available.</div>}{mostExtended?.ma200dist != null && <div style={{ fontSize: 11.5, color: theme.text3 }}>Most extended vs 200SMA: <b style={{ color: theme.text }}>{mostExtended.sym}</b> at +{mostExtended.ma200dist.toFixed(1)}%.</div>}</Card></div>;
 }
 
 // ─── Local portfolio cache ────────────────────────────────────────────────────
@@ -918,7 +925,8 @@ function SignIn({ theme }) {
 
 function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefresh, lastRefreshed, fgIndex, onDelete, onMethodology }) {
   const [focused, setFocused] = useState(null);
-  const top = holdings[0];
+  // Leader must come from assets that actually have signals behind them.
+  const top = holdings.find(isRankable) || null;
   const chartData = holdings;
 
   return (
@@ -985,6 +993,7 @@ function SectionHead({ theme, title, sub }) {
 
 function TopPickCard({ theme, holding: h, onOpen, onMethodology }) {
   const c = getColor(h.sym);
+  const sd = scoreDisplay(h);
   return (
     <Card theme={theme} tint={c} style={{ padding: 0, overflow: 'hidden', cursor: 'pointer' }} onClick={onOpen}>
       <div style={{ padding: '14px 16px 12px', background: `linear-gradient(135deg, ${c}1A, transparent 60%)`, borderBottom: `1px solid ${theme.line}` }}>
@@ -1003,9 +1012,12 @@ function TopPickCard({ theme, holding: h, onOpen, onMethodology }) {
               <div style={{ fontSize: 11, color: theme.text3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name}</div>
             </div>
             <div style={{ display: 'flex', gap: 14, marginTop: 4, fontFamily: 'var(--font-mono)', fontSize: 11, color: theme.text2 }}>
-              <span title={scoreTooltip(h)}><span style={{ color: theme.text3 }}>SCORE </span><b style={{ color: c }}>{h.score}</b></span>
+              <span title={scoreTooltip(h)}><span style={{ color: theme.text3 }}>SCORE </span><b style={{ color: c }}>{sd.usable ? h.score : '—'}</b></span>
               {h.rsi != null && <span><span style={{ color: theme.text3 }}>RSI </span><b style={{ color: theme.text }}>{h.rsi}</b></span>}
               <span><span style={{ color: theme.text3 }}>$ </span><b style={{ color: theme.text }}>{h.price ? fmtPrice(h.price) : '—'}</b></span>
+            </div>
+            <div title={COVERAGE_TOOLTIP} style={{ marginTop: 4, fontSize: 10.5, color: coverageColor(h.coverage, theme) }}>
+              {sd.usable ? `${formatCoverage(h.coverage)} signal coverage · ${sd.label}` : 'Insufficient data — no scoring signals'}
             </div>
           </div>
           <RatingPill rating={h.displayRating || h.rating} large/>
@@ -1014,7 +1026,7 @@ function TopPickCard({ theme, holding: h, onOpen, onMethodology }) {
       <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(16,185,129,.14)', border: '1px solid rgba(16,185,129,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>💡</div>
         <div style={{ flex: 1, fontSize: 12, color: theme.text2, lineHeight: 1.4 }}>
-          {h.why || `Score ${h.score}/10 — ${h.displayRating === 'BUY' || h.displayRating === 'STRONG BUY' ? 'market conditions currently score well for this DCA plan' : 'monitor for better entry'}`}{' '}
+          {h.why || (sd.usable ? `Score ${h.score}/10 — ${h.displayRating === 'BUY' || h.displayRating === 'STRONG BUY' ? 'market conditions currently score well for this DCA plan' : 'monitor for better entry'}` : 'Not enough signal data to score this asset yet.')}{' '}
           <button type="button" onClick={(e) => { e.stopPropagation(); onMethodology?.(); }} style={{ border: 'none', background: 'transparent', padding: 0, color: '#5BC8FF', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Methodology →</button>
         </div>
         {Ic.chevR(16, theme.text3)}
@@ -1069,6 +1081,7 @@ const SWIPE_DELETE_PX = 88;
 
 function HoldingRow({ h, theme, last, onClick, onDelete }) {
   const c = getColor(h.sym);
+  const sd = scoreDisplay(h);
   const d = h.ma200dist;
   const distColor = d == null ? theme.text3 : d < 0 ? '#10B981' : d > 20 ? '#EF4444' : theme.text;
   const distLabel = d == null ? '—' : (d >= 0 ? '+' : '') + d.toFixed(1) + '%';
@@ -1188,7 +1201,14 @@ function HoldingRow({ h, theme, last, onClick, onDelete }) {
           </div>
         </div>
       </div>
-      <div><RatingPill rating={h.displayRating || 'HOLD'}/></div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
+        {sd.usable
+          ? <RatingPill rating={h.displayRating || 'HOLD'}/>
+          : <span style={{ fontSize: 10.5, fontWeight: 700, color: theme.text3 }}>No score</span>}
+        <span title={COVERAGE_TOOLTIP} style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: coverageColor(h.coverage, theme), whiteSpace: 'nowrap' }}>
+          {sd.usable ? `${formatCoverage(h.coverage)}${sd.partial ? ' · partial' : ''}` : '0% coverage'}
+        </span>
+      </div>
       <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: h.rsi == null ? theme.text3 : h.rsi < 30 ? '#10B981' : h.rsi > 70 ? '#EF4444' : theme.text }}>{h.rsi ?? '—'}</div>
       <div title={h.sym === 'MSTR' ? 'PE excluded — Bitcoin treasury company' : undefined} style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: (h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.sym === 'MSTR' || h.fpe == null) ? theme.text3 : h.fpe < 15 ? '#10B981' : h.fpe <= 35 ? '#F59E0B' : '#EF4444' }}>
         {(h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.sym === 'MSTR' || h.fpe == null) ? (h.sym === 'MSTR' ? '—*' : '—') : parseFloat(h.fpe).toFixed(1)}
@@ -1379,7 +1399,12 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex, onDelete, onMethod
 
       <div style={{ padding: '0 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div title={scoreTooltip(h)}>
-          <Stat theme={theme} label="Score" value={h.score} tint={c} maxValue={10} bar/>
+          <Stat theme={theme} label="Score" value={scoreDisplay(h).usable ? h.score : '—'} tint={c} maxValue={10} bar/>
+        </div>
+        <div title={COVERAGE_TOOLTIP} style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, background: theme.bg2, border: `1px solid ${theme.line}`, fontSize: 11.5 }}>
+          <span style={{ color: theme.text3 }}>Signal coverage</span>
+          <b style={{ marginLeft: 'auto', fontFamily: 'var(--font-mono)', color: coverageColor(h.coverage, theme) }}>{formatCoverage(h.coverage)}</b>
+          <span style={{ color: theme.text3 }}>{scoreDisplay(h).usable ? coverageLabel(h.coverage) : 'Insufficient data'}</span>
         </div>
         <Stat theme={theme} label="RSI (14)" value={h.rsi ?? '—'} tint={rsiSignalColor(h.rsi, theme)} maxValue={100} bar={h.rsi != null} zones/>
         <Stat theme={theme} label="Forward P/E"
@@ -2325,7 +2350,8 @@ function DesktopHeader({ theme, user, onAdd, onLogout, fgIndex }) {
 
 function DesktopDashboardRight({ theme, holdings, loading, navigate, fgIndex, onMethodology }) {
   const [focused, setFocused] = useState(null);
-  const top = holdings[0];
+  // Leader must come from assets that actually have signals behind them.
+  const top = holdings.find(isRankable) || null;
   const chartData = holdings;
   return (
     <>
@@ -2356,7 +2382,8 @@ function DesktopDashboardRight({ theme, holdings, loading, navigate, fgIndex, on
 
 function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgIndex, onMethodology }) {
   const [focused, setFocused] = useState(null);
-  const top = holdings[0];
+  // Leader must come from assets that actually have signals behind them.
+  const top = holdings.find(isRankable) || null;
   const chartData = holdings;
 
   return (
