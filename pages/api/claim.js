@@ -1,8 +1,8 @@
 /**
  * ONE-TIME MIGRATION ENDPOINT — delete this file once the import has run.
  *
- * Imports two specific legacy rows from public.tickers into Clerk-owned
- * portfolios. Deliberately constrained:
+ * Imports a specific legacy watchlist row from public.tickers into a
+ * Clerk-owned portfolio. Deliberately constrained:
  *
  *   - Sources are HARDCODED below. No user-supplied username is accepted, so
  *     this cannot be used to claim anyone else's row.
@@ -31,7 +31,6 @@ import { requireUser, fail, methodNotAllowed } from '../../lib/apiAuth';
 // 'HarleyGlass' is unreachable through the old sign-in form, which force-lowercased.
 const CLAIMABLE = [
     { username: 'glassharley', name: DEFAULT_WATCHLIST_NAME, kind: 'watchlist' },
-    { username: 'HarleyGlass', name: 'Tagged Portfolio', kind: 'portfolio' },
 ];
 
 async function readLegacyRow(username) {

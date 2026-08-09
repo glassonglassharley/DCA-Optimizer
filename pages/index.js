@@ -4,7 +4,8 @@ import { SignIn as ClerkSignIn, SignedOut, UserButton, useUser } from '@clerk/ne
 import { Ic } from '../components/icons';
 import {
   TICKER_COLORS, RATING_STYLES, RATING_LABELS, TAG_STYLES, THEMES, GLOSSARY,
-  getColor, fgColor, fgLabel, rsiSignalColor, shade, fmtPrice, computeScore,
+  SCORE_METHODOLOGY, getColor, fgColor, fgLabel, rsiSignalColor, shade, fmtPrice,
+  computeScore, ratingForScore, ratingRangeText, scoreContributions, scoreTooltip,
 } from '../components/tokens';
 
 // ─── Ticker disambiguation ────────────────────────────────────────────────────
@@ -73,7 +74,7 @@ function Card({ style, children, theme, cardStyle = 'flat', tint, onClick }) {
 function RatingPill({ rating, large }) {
   const s = RATING_STYLES[rating] || RATING_STYLES['HOLD'];
   return (
-    <span style={{
+    <span title={ratingRangeText(rating)} style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
       padding: large ? '6px 12px' : '3px 9px',
       borderRadius: 999, background: s.bg, border: `1px solid ${s.bd}`,
@@ -354,9 +355,6 @@ function StaxHeader({ theme, onAdd, onGlossary, onLogout, user, fgIndex }) {
             )}
           </div>
         )}
-        {user && (
-          <UserButton afterSignOutUrl="/"/>
-        )}
         <IconBtn theme={theme} onClick={onGlossary}>
           <span style={{ fontSize: 14, fontWeight: 700, color: theme.text2, fontFamily: 'var(--font-mono)' }}>?</span>
         </IconBtn>
@@ -506,6 +504,86 @@ function TransparencyBar({ theme, onLearn }) {
   );
 }
 
+function ScoreInfoBtn({ theme, onClick, label = 'Score methodology' }) {
+  return <button type="button" onClick={onClick} title={label} style={{ width: 20, height: 20, borderRadius: 999, border: `1px solid ${theme.line2}`, background: theme.pillBg, color: theme.brand, fontSize: 11, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, touchAction: 'manipulation' }}>?</button>;
+}
+
+function DrawerSection({ theme, title, children }) {
+  return <section style={{ marginTop: 20 }}><h3 style={{ fontSize: 14, color: theme.text, margin: '0 0 8px', letterSpacing: '-.01em' }}>{title}</h3>{children}</section>;
+}
+
+function MethodologyDrawer({ theme, open, onClose, holding }) {
+  if (!open) return null;
+  const example = holding || { sym: 'MSTR', score: 7.5, displayRating: 'BUY', rsi: 47, fg: 30, fpe: null, tag: 'STOCK', rating: 'BUY', aboveMa72: false, ma200dist: -3.2 };
+  const rows = scoreContributions({ ...example, isCrypto: example.tag === 'CRYPTO' });
+  const total = Math.max(0, Math.min(10, SCORE_METHODOLOGY.baseScore + rows.reduce((s, r) => s + r.points, 0))).toFixed(1);
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', justifyContent: 'flex-end' }}>
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(2,6,23,.68)', backdropFilter: 'blur(4px)' }}/>
+      <div style={{ position: 'relative', width: 'min(520px, 100vw)', height: '100%', overflowY: 'auto', background: '#0B1020', borderLeft: `1px solid ${theme.line2}`, boxShadow: '-18px 0 50px rgba(0,0,0,.45)', padding: '18px 18px 28px', color: theme.text }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.12em', color: theme.brand, textTransform: 'uppercase' }}>Scoring Methodology</div>
+            <h2 style={{ margin: '4px 0 4px', fontSize: 22, letterSpacing: '-.03em' }}>How the 0–10 score is calculated</h2>
+            <div style={{ fontSize: 11, color: theme.text3 }}>Last updated {SCORE_METHODOLOGY.lastUpdated} · absolute model, not watchlist-relative</div>
+          </div>
+          <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: 10, border: `1px solid ${theme.line2}`, background: theme.pillBg, color: theme.text2, cursor: 'pointer' }}>{Ic.close(16, theme.text2)}</button>
+        </div>
+
+        <div style={{ padding: 14, borderRadius: 14, background: theme.card, border: `1px solid ${theme.line}` }}>
+          <div style={{ fontSize: 13, color: theme.text2, lineHeight: 1.55 }}>
+            DCA Anchor starts each asset at <b style={{ color: theme.text }}>5.0</b> and adds or subtracts signal points from RSI, moving averages, sentiment, valuation, and analyst consensus. The final score is clamped from <b style={{ color: theme.text }}>0 to 10</b>. It is market-data context, not financial advice.
+          </div>
+        </div>
+
+        <DrawerSection theme={theme} title="Weights and normalization">
+          {SCORE_METHODOLOGY.components.map(c => (
+            <div key={c.id} style={{ padding: '12px 0', borderBottom: `1px solid ${theme.line}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ flex: 1, fontSize: 13.5, fontWeight: 800 }}>{c.label}</div>
+                <div style={{ width: 76, height: 8, borderRadius: 99, background: theme.bg2, overflow: 'hidden' }}><div style={{ width: c.weight, height: '100%', background: `linear-gradient(90deg, ${theme.brand}, ${theme.brand2})` }}/></div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: theme.brand, width: 34, textAlign: 'right' }}>{c.weight}</div>
+              </div>
+              <div style={{ fontSize: 11.5, color: theme.text3, lineHeight: 1.45, marginTop: 4 }}>{c.note}</div>
+              <div style={{ marginTop: 8, display: 'grid', gap: 4 }}>
+                {c.rules.map(([rule, pts, note]) => <div key={rule} style={{ display: 'grid', gridTemplateColumns: '1fr 48px', gap: 8, fontSize: 11.5, color: theme.text2 }}><span><b style={{ color: theme.text }}>{rule}</b> — {note}</span><span style={{ color: pts.startsWith('+') ? '#4ADE80' : pts.startsWith('−') ? '#F87171' : theme.text3, fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{pts}</span></div>)}
+              </div>
+            </div>
+          ))}
+        </DrawerSection>
+
+        <DrawerSection theme={theme} title="Score labels">
+          {SCORE_METHODOLOGY.thresholds.map(t => <div key={t.key} style={{ display: 'grid', gridTemplateColumns: '78px 100px 1fr', gap: 8, padding: '8px 0', borderBottom: `1px solid ${theme.line}`, fontSize: 12 }}><span style={{ fontFamily: 'var(--font-mono)', color: theme.brand }}>{t.min}–{t.max}</span><b>{t.label}</b><span style={{ color: theme.text2 }}>{t.meaning}</span></div>)}
+        </DrawerSection>
+
+        <DrawerSection theme={theme} title={`Example calculation${example.sym ? `: ${example.sym}` : ''}`}>
+          <div style={{ border: `1px solid ${theme.line}`, borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: theme.bg2, fontSize: 12 }}><b>Base score</b><span style={{ fontFamily: 'var(--font-mono)' }}>{SCORE_METHODOLOGY.baseScore.toFixed(1)}</span></div>
+            {rows.map(r => <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1fr 48px', gap: 8, padding: '9px 12px', borderTop: `1px solid ${theme.line}`, fontSize: 12 }}><span style={{ color: r.available ? theme.text2 : theme.text3 }}><b style={{ color: theme.text }}>{r.label}</b> — {r.detail}</span><span style={{ color: r.points > 0 ? '#4ADE80' : r.points < 0 ? '#F87171' : theme.text3, fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{r.points > 0 ? '+' : ''}{r.points.toFixed(1)}</span></div>)}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', borderTop: `1px solid ${theme.line2}`, fontSize: 13 }}><b>Final score</b><b style={{ color: theme.brand, fontFamily: 'var(--font-mono)' }}>{example.score ?? total}/10</b></div>
+          </div>
+        </DrawerSection>
+
+        <DrawerSection theme={theme} title="How to interpret this score">
+          <div style={{ fontSize: 12.5, color: theme.text2, lineHeight: 1.6 }}>Higher scores mean the asset is closer to historically attractive DCA conditions: cooler momentum, less extension from moving averages, fearful sentiment, or cheaper valuation. Lower scores mean the asset may be extended. The score does not rank assets against each other and does not predict future returns.</div>
+        </DrawerSection>
+      </div>
+    </div>
+  );
+}
+
+function PortfolioSummary({ theme, holdings, onMethodology }) {
+  if (!holdings.length) return null;
+  const avg = holdings.reduce((s, h) => s + (h.score || 0), 0) / holdings.length;
+  const high = holdings.filter(h => h.score >= 8).length;
+  const favorable = holdings.filter(h => h.score >= 6 && h.score < 8).length;
+  const extended = holdings.filter(h => h.score < 4).length;
+  const best = holdings[0];
+  const mostExtended = [...holdings].sort((a, b) => (b.ma200dist ?? -999) - (a.ma200dist ?? -999))[0];
+  const cell = (label, value, tint) => <div style={{ padding: '10px 12px', borderRadius: 12, background: theme.card, border: `1px solid ${theme.line}` }}><div style={{ fontSize: 9.5, color: theme.text3, letterSpacing: '.09em', fontWeight: 800, textTransform: 'uppercase' }}>{label}</div><div style={{ marginTop: 3, fontSize: 15, color: tint || theme.text, fontWeight: 800, fontFamily: 'var(--font-mono)' }}>{value}</div></div>;
+  return <div style={{ padding: '0 16px' }}><Card theme={theme} style={{ display: 'grid', gap: 10 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><SectionHead theme={theme} title="Portfolio snapshot" sub="Current DCA signal mix"/><div style={{ marginLeft: 'auto' }}><ScoreInfoBtn theme={theme} onClick={onMethodology}/></div></div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 8 }}>{cell('Avg score', avg.toFixed(1), theme.brand)}{cell('Best setup', best?.sym || '—', getColor(best?.sym || ''))}{cell('High/Fav', `${high}/${favorable}`, '#4ADE80')}{cell('Extended', extended, extended ? '#F87171' : theme.text3)}</div>{mostExtended?.ma200dist != null && <div style={{ fontSize: 11.5, color: theme.text3 }}>Most extended vs 200SMA: <b style={{ color: theme.text }}>{mostExtended.sym}</b> at +{mostExtended.ma200dist.toFixed(1)}%.</div>}</Card></div>;
+}
+
 // ─── Local portfolio cache ────────────────────────────────────────────────────
 // Mirrors the server state per Clerk user id, so a backend outage renders
 // stale-but-present data instead of an empty portfolio. Keyed by user id rather
@@ -555,6 +633,10 @@ function writeActiveId(userId, id) {
   } catch {
     // Selection just won't survive reload; not worth failing the switch over.
   }
+}
+
+function visiblePortfolios(list) {
+  return (Array.isArray(list) ? list : []).filter(p => p?.name !== 'Tagged Portfolio');
 }
 
 // ─── Portfolio switcher ───────────────────────────────────────────────────────
@@ -761,7 +843,7 @@ function SignIn({ theme }) {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefresh, lastRefreshed, fgIndex, onDelete }) {
+function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefresh, lastRefreshed, fgIndex, onDelete, onMethodology }) {
   const [focused, setFocused] = useState(null);
   const top = holdings[0];
   const chartData = holdings;
@@ -770,18 +852,23 @@ function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefre
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <StaxHeader theme={theme} user={user} fgIndex={fgIndex} onAdd={() => navigate('add')} onGlossary={() => navigate('glossary')} onLogout={onLogout}/>
       <NotifBar theme={theme} holdings={holdings}/>
-      <TransparencyBar theme={theme} onLearn={() => navigate('glossary')}/>
+      <TransparencyBar theme={theme} onLearn={() => onMethodology(top)}/>
+
+      <PortfolioSummary theme={theme} holdings={holdings} onMethodology={() => onMethodology(top)}/>
 
       {top && (
         <div style={{ padding: '0 16px' }}>
-          <TopPickCard theme={theme} holding={top} onOpen={() => navigate('detail', top.sym)}/>
+          <TopPickCard theme={theme} holding={top} onOpen={() => navigate('detail', top.sym)} onMethodology={() => onMethodology(top)}/>
         </div>
       )}
 
       {chartData.length > 0 && (
         <div style={{ padding: '0 16px' }}>
           <Card theme={theme}>
-            <SectionHead theme={theme} title="Scores" sub="0–10 composite signal"/>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <SectionHead theme={theme} title="Scores" sub="0–10 absolute composite signal"/>
+              <ScoreInfoBtn theme={theme} onClick={() => onMethodology(top)}/>
+            </div>
             <ScoresChart data={chartData} theme={theme} focused={focused} onPick={s => setFocused(focused === s ? null : s)}/>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14, paddingTop: 10, borderTop: `1px solid ${theme.line}` }}>
               {chartData.map(d => {
@@ -799,7 +886,7 @@ function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefre
         </div>
       )}
 
-      <HoldingsTable theme={theme} holdings={holdings} loading={loading} onPick={sym => navigate('detail', sym)} onRefresh={onRefresh} lastRefreshed={lastRefreshed} onDelete={onDelete}/>
+      <HoldingsTable theme={theme} holdings={holdings} loading={loading} onPick={sym => navigate('detail', sym)} onRefresh={onRefresh} lastRefreshed={lastRefreshed} onDelete={onDelete} onMethodology={onMethodology}/>
 
       {holdings.length === 0 && !loading && (
         <div style={{ textAlign: 'center', padding: '60px 20px', color: theme.text3 }}>
@@ -823,7 +910,7 @@ function SectionHead({ theme, title, sub }) {
   );
 }
 
-function TopPickCard({ theme, holding: h, onOpen }) {
+function TopPickCard({ theme, holding: h, onOpen, onMethodology }) {
   const c = getColor(h.sym);
   return (
     <Card theme={theme} tint={c} style={{ padding: 0, overflow: 'hidden', cursor: 'pointer' }} onClick={onOpen}>
@@ -843,7 +930,7 @@ function TopPickCard({ theme, holding: h, onOpen }) {
               <div style={{ fontSize: 11, color: theme.text3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name}</div>
             </div>
             <div style={{ display: 'flex', gap: 14, marginTop: 4, fontFamily: 'var(--font-mono)', fontSize: 11, color: theme.text2 }}>
-              <span><span style={{ color: theme.text3 }}>SCORE </span><b style={{ color: c }}>{h.score}</b></span>
+              <span title={scoreTooltip(h)}><span style={{ color: theme.text3 }}>SCORE </span><b style={{ color: c }}>{h.score}</b></span>
               {h.rsi != null && <span><span style={{ color: theme.text3 }}>RSI </span><b style={{ color: theme.text }}>{h.rsi}</b></span>}
               <span><span style={{ color: theme.text3 }}>$ </span><b style={{ color: theme.text }}>{h.price ? fmtPrice(h.price) : '—'}</b></span>
             </div>
@@ -855,7 +942,7 @@ function TopPickCard({ theme, holding: h, onOpen }) {
         <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(16,185,129,.14)', border: '1px solid rgba(16,185,129,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>💡</div>
         <div style={{ flex: 1, fontSize: 12, color: theme.text2, lineHeight: 1.4 }}>
           {h.why || `Score ${h.score}/10 — ${h.displayRating === 'BUY' || h.displayRating === 'STRONG BUY' ? 'market conditions currently score well for this DCA plan' : 'monitor for better entry'}`}{' '}
-          <a href="/methodology" style={{ color: '#5BC8FF', fontSize: 11, textDecoration: 'none', whiteSpace: 'nowrap' }}>Methodology →</a>
+          <button type="button" onClick={(e) => { e.stopPropagation(); onMethodology?.(); }} style={{ border: 'none', background: 'transparent', padding: 0, color: '#5BC8FF', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Methodology →</button>
         </div>
         {Ic.chevR(16, theme.text3)}
       </div>
@@ -863,14 +950,14 @@ function TopPickCard({ theme, holding: h, onOpen }) {
   );
 }
 
-function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefreshed, onDelete }) {
+function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefreshed, onDelete, onMethodology }) {
   const minsAgo = lastRefreshed ? Math.floor((Date.now() - lastRefreshed) / 60000) : null;
   return (
     <div style={{ padding: '0 16px' }}>
       <Card theme={theme} style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '14px 16px 8px', display: 'flex', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: 14.5, fontWeight: 700, color: theme.text }}>Holdings</div>
+            <div style={{ fontSize: 14.5, fontWeight: 700, color: theme.text, display: 'flex', alignItems: 'center', gap: 6 }}>Holdings <ScoreInfoBtn theme={theme} onClick={() => onMethodology?.(holdings[0])}/></div>
             <div style={{ fontSize: 10.5, color: theme.text3, marginTop: 1 }}>
               {holdings.length} tickers · sorted by score
               {onDelete && holdings.length > 0 && ' · swipe or double-click a row to remove'}
@@ -883,7 +970,7 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
             </button>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 62px 30px 36px 48px 1fr', gap: 5, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
+        <div title="Buy rating comes from the 0–10 composite score. Hover/tap rating pills for exact ranges." style={{ display: 'grid', gridTemplateColumns: '1.4fr 62px 30px 36px 48px 1fr', gap: 5, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
           {['ASSET', 'BUY RATING', 'RSI', 'PE', '200MA', 'PRICE'].map((h, i) => (
             <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
           ))}
@@ -1101,13 +1188,24 @@ function RecentNews({ sym, theme }) {
 
 // ─── Asset Detail ─────────────────────────────────────────────────────────────
 
-function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
+function AssetDetail({ theme, sym, onBack, holdings, fgIndex, onDelete, onMethodology }) {
   const h = holdings.find(x => x.sym === sym) || { sym, name: sym, price: null, rsi: null, fpe: null, fg: fgIndex, score: 5, rating: 'HOLD', displayRating: 'HOLD' };
   const c = getColor(sym);
 
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [chartPeriod, setChartPeriod] = useState('1M');
   const [chartPts, setChartPts] = useState(null);
   const [chartLoading, setChartLoading] = useState(false);
+
+  const removeFromDetail = async () => {
+    if (!onDelete) return;
+    if (!confirmRemove) {
+      setConfirmRemove(true);
+      return;
+    }
+    await onDelete(sym);
+    onBack();
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -1143,6 +1241,27 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
             <div style={{ fontSize: 10.5, color: theme.text3 }}>{h.name || sym}</div>
           </div>
         </div>
+        <ScoreInfoBtn theme={theme} onClick={() => onMethodology?.(h)} label={`Why ${sym} scored ${h.score}`}/>
+        {onDelete && (
+          <button
+            type="button"
+            onClick={removeFromDetail}
+            onBlur={() => setConfirmRemove(false)}
+            title={confirmRemove ? `Confirm remove ${sym}` : `Remove ${sym} from this portfolio`}
+            style={{
+              minHeight: 34, padding: '0 11px', borderRadius: 10,
+              border: `1px solid ${confirmRemove ? 'rgba(239,68,68,.55)' : theme.line2}`,
+              background: confirmRemove ? 'rgba(239,68,68,.14)' : theme.pillBg,
+              color: confirmRemove ? '#FCA5A5' : theme.text3,
+              cursor: 'pointer', fontSize: 11.5, fontWeight: 700,
+              display: 'flex', alignItems: 'center', gap: 5,
+              touchAction: 'manipulation', whiteSpace: 'nowrap',
+            }}
+          >
+            {Ic.close(13, confirmRemove ? '#FCA5A5' : theme.text3)}
+            {confirmRemove ? 'Confirm' : 'Remove'}
+          </button>
+        )}
         <RatingPill rating={h.displayRating || 'HOLD'} large/>
       </div>
 
@@ -1186,7 +1305,9 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
       </div>
 
       <div style={{ padding: '0 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <Stat theme={theme} label="Score" value={h.score} tint={c} maxValue={10} bar/>
+        <div title={scoreTooltip(h)}>
+          <Stat theme={theme} label="Score" value={h.score} tint={c} maxValue={10} bar/>
+        </div>
         <Stat theme={theme} label="RSI (14)" value={h.rsi ?? '—'} tint={rsiSignalColor(h.rsi, theme)} maxValue={100} bar={h.rsi != null} zones/>
         <Stat theme={theme} label="Forward P/E"
           value={(h.fpe != null && h.sym !== 'MSTR') ? parseFloat(h.fpe).toFixed(1) : '—'}
@@ -1242,7 +1363,7 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex }) {
 
       <div style={{ padding: '0 16px' }}>
         <Card theme={theme}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: theme.text, marginBottom: 6 }}>Why this rating?</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: theme.text, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>Why this rating? <ScoreInfoBtn theme={theme} onClick={() => onMethodology?.(h)} label="Open score methodology"/></div>
           <div style={{ fontSize: 12, color: theme.text2, lineHeight: 1.5 }}>
             {h.why || `Based on composite score of ${h.score}/10 from RSI position, market sentiment, and valuation metrics.`}
           </div>
@@ -1523,7 +1644,7 @@ function SettingsScreen({ theme, onBack, onGlossary, user, claim, onImport }) {
           <Card theme={theme} style={{ padding: 16 }}>
             <div style={{ fontSize: 13, color: theme.text, fontWeight: 600, marginBottom: 4 }}>Bring in your old watchlist</div>
             <div style={{ fontSize: 11.5, color: theme.text3, lineHeight: 1.45, marginBottom: 12 }}>
-              Copies your pre-login lists into this account as “Watchlist” and “Tagged Portfolio”.
+              Copies your pre-login watchlist into this account.
               Available once, only while this account is empty.
             </div>
             <button
@@ -2117,8 +2238,6 @@ function DesktopHeader({ theme, user, onAdd, onLogout, fgIndex }) {
           </div>
         )}
         {user && <div style={{ fontSize: 12, color: theme.text3, fontFamily: 'var(--font-mono)', background: theme.bg2, padding: '4px 10px', borderRadius: 7, border: `1px solid ${theme.line}` }}>{user}</div>}
-        {/* Clerk owns sign-out, account and session switching from here. */}
-        <UserButton afterSignOutUrl="/"/>
         <button onClick={onAdd} style={{
           height: 34, padding: '0 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
           background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`,
@@ -2131,7 +2250,7 @@ function DesktopHeader({ theme, user, onAdd, onLogout, fgIndex }) {
   );
 }
 
-function DesktopDashboardRight({ theme, holdings, loading, navigate, fgIndex }) {
+function DesktopDashboardRight({ theme, holdings, loading, navigate, fgIndex, onMethodology }) {
   const [focused, setFocused] = useState(null);
   const top = holdings[0];
   const chartData = holdings;
@@ -2140,12 +2259,15 @@ function DesktopDashboardRight({ theme, holdings, loading, navigate, fgIndex }) 
       {top && (
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: theme.text3, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Watchlist Leader</div>
-          <TopPickCard theme={theme} holding={top} onOpen={() => navigate('detail', top.sym)}/>
+          <TopPickCard theme={theme} holding={top} onOpen={() => navigate('detail', top.sym)} onMethodology={() => onMethodology?.(top)}/>
         </div>
       )}
       {chartData.length > 0 && (
         <Card theme={theme}>
-          <SectionHead theme={theme} title="Scores" sub="0–10 composite signal"/>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <SectionHead theme={theme} title="Scores" sub="0–10 absolute composite signal"/>
+            <ScoreInfoBtn theme={theme} onClick={() => onMethodology?.(top)}/>
+          </div>
           <ScoresChart data={chartData} theme={theme} focused={focused} onPick={s => setFocused(focused === s ? null : s)}/>
         </Card>
       )}
@@ -2159,7 +2281,7 @@ function DesktopDashboardRight({ theme, holdings, loading, navigate, fgIndex }) 
   );
 }
 
-function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgIndex }) {
+function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgIndex, onMethodology }) {
   const [focused, setFocused] = useState(null);
   const top = holdings[0];
   const chartData = holdings;
@@ -2206,7 +2328,10 @@ function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgInd
         )}
         {chartData.length > 0 && (
           <Card theme={theme}>
-            <SectionHead theme={theme} title="Scores" sub="0–10 composite signal"/>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <SectionHead theme={theme} title="Scores" sub="0–10 absolute composite signal"/>
+              <ScoreInfoBtn theme={theme} onClick={() => onMethodology?.(top)}/>
+            </div>
             <ScoresChart data={chartData} theme={theme} focused={focused} onPick={s => setFocused(focused === s ? null : s)}/>
           </Card>
         )}
@@ -2253,6 +2378,8 @@ export default function Home() {
   const [lastRefreshed, setLastRefreshed] = useState(null);
   const [syncState, setSyncState] = useState('ok'); // 'ok' | 'saving' | 'offline'
   const [claim, setClaim] = useState({ available: false, busy: false, error: null });
+  const [methodologyAsset, setMethodologyAsset] = useState(null);
+  const [methodologyOpen, setMethodologyOpen] = useState(false);
 
   const cur = stack[stack.length - 1];
   const navigate = (screen, arg) => setStack(s => [...s, { screen, arg }]);
@@ -2304,8 +2431,9 @@ export default function Home() {
       }
       const d = await r.json();
       const list = Array.isArray(d.portfolios) ? d.portfolios : [];
-      commit(list);
-      setActiveId(prev => resolveActive(list, prev));
+      const visible = visiblePortfolios(list);
+      commit(visible);
+      setActiveId(prev => resolveActive(visible, prev));
       setSyncState('ok');
     } catch (err) {
       console.error('[portfolios] load failed:', err.message);
@@ -2325,7 +2453,7 @@ export default function Home() {
       setDataLoading(false);
       return;
     }
-    const cached = readCachedPortfolios(userId);
+    const cached = visiblePortfolios(readCachedPortfolios(userId));
     if (cached && cached.length) {
       setPortfolios(cached);
       setActiveId(prev => resolveActive(cached, prev));
@@ -2350,7 +2478,7 @@ export default function Home() {
       const r = await fetch('/api/claim', { method: 'POST' });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.message || d.error || 'Import failed.');
-      const list = Array.isArray(d.portfolios) ? d.portfolios : [];
+      const list = visiblePortfolios(Array.isArray(d.portfolios) ? d.portfolios : []);
       commit(list);
       selectActive(list[0]?.id ?? null);
       setClaim({ available: false, busy: false, error: null });
@@ -2477,7 +2605,7 @@ export default function Home() {
       const aboveMa200 = m.aboveMa200 ?? null;
       const ma200dist = (m.currentPrice && m.ma200) ? ((m.currentPrice - m.ma200) / m.ma200) * 100 : null;
       const score = computeScore(rsi, fgIndex, (isCrypto || sym === 'MSTR') ? null : fpe, rating, isCrypto, aboveMa72, ma200dist);
-      const displayRating = score >= 8 ? 'STRONG BUY' : score >= 6 ? 'BUY' : score >= 4 ? 'HOLD' : 'WAIT';
+      const displayRating = ratingForScore(score);
       return {
         sym,
         name: m.name || PRIVATE_COMPANIES[sym]?.name || sym,
@@ -2613,14 +2741,19 @@ export default function Home() {
     navigate('add');
   };
 
+  const openMethodology = (asset = null) => {
+    setMethodologyAsset(asset || holdings[0] || null);
+    setMethodologyOpen(true);
+  };
+
   let body;
-  if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker}/>;
-  else if (cur.screen === 'detail') body = <AssetDetail theme={theme} sym={cur.arg} onBack={back} holdings={holdings} fgIndex={fgIndex}/>;
+  if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology}/>;
+  else if (cur.screen === 'detail') body = <AssetDetail theme={theme} sym={cur.arg} onBack={back} holdings={holdings} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology}/>;
   else if (cur.screen === 'add') body = <AddTicker theme={theme} onBack={back} selectedTickers={selectedTickers} onToggle={toggleTicker}/>;
   else if (cur.screen === 'glossary') body = <GlossaryScreen theme={theme} onBack={back}/>;
   else if (cur.screen === 'settings') body = <SettingsScreen theme={theme} onBack={back} onGlossary={() => replace('glossary')} user={userLabel} claim={claim} onImport={runImport}/>;
   else if (cur.screen === 'calculator') body = <CalculatorScreen theme={theme} holdings={holdings}/>;
-  else body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker}/>;
+  else body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology}/>;
 
   return (
     <>
@@ -2732,13 +2865,13 @@ export default function Home() {
                   <NotifBar theme={theme} holdings={holdings}/>
                   <div style={{ marginTop: 16, marginBottom: 16 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: theme.text3, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Holdings — sorted by score</div>
-                    <HoldingsTable theme={theme} holdings={holdings} loading={loading || dataLoading} onPick={sym => navigate('detail', sym)} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} onDelete={removeTicker}/>
+                    <HoldingsTable theme={theme} holdings={holdings} loading={loading || dataLoading} onPick={sym => navigate('detail', sym)} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} onDelete={removeTicker} onMethodology={openMethodology}/>
                   </div>
                 </div>
               </div>
               {/* Right: charts (desktop only) */}
               <div className="dca-dash-right dca-dsk-only">
-                <DesktopDashboardRight theme={theme} holdings={holdings} loading={loading || dataLoading} navigate={navigate} fgIndex={fgIndex}/>
+                <DesktopDashboardRight theme={theme} holdings={holdings} loading={loading || dataLoading} navigate={navigate} fgIndex={fgIndex} onMethodology={openMethodology}/>
               </div>
             </div>
           ) : (
@@ -2760,6 +2893,13 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      <MethodologyDrawer
+        theme={theme}
+        open={methodologyOpen}
+        holding={methodologyAsset}
+        onClose={() => setMethodologyOpen(false)}
+      />
     </>
   );
 }
