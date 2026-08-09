@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Ic } from '../components/icons';
 import {
   THEMES, RATING_STYLES, RATING_LABELS,
-  getColor, shade, fmtPrice, computeScore, fgColor,
+  getColor, shade, fmtPrice, scoreAsset, ratingForScore, fgColor,
 } from '../components/tokens';
 
 const MAX_DESKTOP = 4;
@@ -49,7 +49,7 @@ function RatingPill({ rating }) {
 }
 
 function ScoreHero({ score, theme, isMobile }) {
-  const rating = score >= 8 ? 'STRONG BUY' : score >= 6 ? 'BUY' : score >= 4 ? 'HOLD' : 'WAIT';
+  const rating = ratingForScore(score);
   const s = RATING_STYLES[rating];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
@@ -400,8 +400,13 @@ export default function ComparePage() {
       const aboveMa200 = m.aboveMa200 ?? null;
       const ma200dist = (m.currentPrice && m.ma200) ? ((m.currentPrice - m.ma200) / m.ma200) * 100 : null;
       const fpe = m.forwardPE ? parseFloat(m.forwardPE) : null;
-      const score = computeScore(m.rsi, fgIndex, isCrypto ? null : fpe, m.rating || 'HOLD', isCrypto, aboveMa72, ma200dist);
-      const displayRating = score >= 8 ? 'STRONG BUY' : score >= 6 ? 'BUY' : score >= 4 ? 'HOLD' : 'WAIT';
+      const { score, coverage } = scoreAsset({
+        sym, isCrypto,
+        rsi: m.rsi, fg: fgIndex, fpe, rating: m.rating,
+        analystCount: m.analystCount ?? null,
+        price: m.currentPrice ?? null, ma72: m.ma72 ?? null, ma200: m.ma200 ?? null,
+      });
+      const displayRating = ratingForScore(score);
       const ma200distRounded = (ma200dist != null && isFinite(ma200dist)) ? parseFloat(ma200dist.toFixed(1)) : null;
       return {
         sym,

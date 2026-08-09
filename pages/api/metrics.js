@@ -171,6 +171,10 @@ export default async function handler(req, res) {
             marketCap: price.marketCap || stats.marketCap || null,
             peRatio: rv(summary.trailingPE) ? rv(summary.trailingPE).toFixed(2) : null,
             forwardPE: forwardPE ? forwardPE.toFixed(2) : null,
+            // `rating` falls back to 'HOLD' when nobody covers the asset, which
+            // makes "no analysts" indistinguishable from a real Hold. Scoring
+            // needs to tell those apart, so publish the count it was derived from.
+            analystCount: totalAnalysts,
             pegRatio: rv(stats.pegRatio) ? rv(stats.pegRatio).toFixed(2) : null,
             priceToBook: (rv(summary.priceToBook) || rv(stats.priceToBook)) ? (rv(summary.priceToBook) || rv(stats.priceToBook)).toFixed(2) : null,
             dividendYield: rv(summary.dividendYield) ? (rv(summary.dividendYield) * 100).toFixed(2) : null,

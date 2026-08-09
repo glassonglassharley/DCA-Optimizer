@@ -27,67 +27,66 @@ export const RATING_LABELS = {
   'AVOID':       'Avoid',
 };
 
+/**
+ * Published weights. These are the real coefficients the score is built from —
+ * scoreAsset() divides by the weight actually in play, so what is shown here is
+ * what a component is worth.
+ */
+export const SCORE_WEIGHTS = {
+  ma200: 0.30,
+  rsi: 0.25,
+  ma72: 0.15,
+  fg: 0.15,
+  fpe: 0.10,
+  analyst: 0.05,
+};
+
 export const SCORE_METHODOLOGY = {
   lastUpdated: '2026-08-08',
   baseScore: 5,
   absolute: true,
+  model: 'continuous-weighted',
+  formula: 'score = 5 + 5 × ( Σ weightᵢ × signalᵢ ) ÷ ( Σ active weightᵢ )',
+  summary: [
+    'Every asset starts from a neutral centre of 5.0.',
+    'Each signal is normalized to a continuous value between −1 and +1, where +1 is the most favorable setup for adding and −1 the most extended.',
+    'Each normalized signal is multiplied by its published weight.',
+    'Signals that are missing or do not apply are dropped from both sides of the calculation, and the remaining weights are renormalized — they are never counted as neutral.',
+    'The resulting weighted signal shifts the score up or down from 5.',
+    'A score of exactly 5.0 now means a genuinely neutral setup, not an absence of data.',
+    'The score is absolute — it describes the asset against its own history, not against the rest of your watchlist.',
+    'Signal coverage shows how much of the model was actually populated for that asset.',
+  ],
   components: [
     {
-      id: 'rsi', label: 'RSI position', weight: '25%', maxPoints: '±2.0',
-      note: 'Contrarian momentum signal. Lower RSI means the asset has cooled off; high RSI is treated as extended.',
-      rules: [
-        ['RSI < 30', '+2.0', 'Oversold / strongest pullback zone'],
-        ['30 ≤ RSI < 50', '+1.0', 'Cooling off below mid-range'],
-        ['50–60', '0', 'Neutral momentum'],
-        ['60 < RSI ≤ 70', '−1.0', 'Warming up / slightly extended'],
-        ['RSI > 70', '−2.0', 'Overbought / extended rally'],
-      ],
+      id: 'ma200', label: '200-day SMA distance', weight: '30%', formula: 'clamp(−distance% ÷ 20)',
+      note: 'Primary long-term baseline. The further below the 200-day average, the more favorable; extension above it is penalized proportionally.',
+      scale: [['20% below', '+1'], ['10% below', '+0.5'], ['at the 200SMA', '0'], ['10% above', '−0.5'], ['20%+ above', '−1']],
     },
     {
-      id: 'ma200', label: '200-day SMA distance', weight: '30%', maxPoints: '+1.5 / −1.5',
-      note: 'Primary long-term baseline signal. Pullbacks below the 200-day average are rewarded; large extensions above it are penalized.',
-      rules: [
-        ['Price below 200SMA', '+1.5', 'Below baseline; favorable DCA zone'],
-        ['0–10% above 200SMA', '0', 'Near baseline'],
-        ['10–20% above 200SMA', '−0.5', 'Slightly extended'],
-        ['>20% above 200SMA', '−1.5', 'Significantly extended'],
-      ],
+      id: 'rsi', label: 'RSI', weight: '25%', formula: 'clamp((50 − RSI) ÷ 25)',
+      note: 'Contrarian momentum, centred on RSI 50. Cooler momentum scores higher; hot momentum scores lower.',
+      scale: [['RSI 25 or lower', '+1'], ['RSI 37.5', '+0.5'], ['RSI 50', '0'], ['RSI 62.5', '−0.5'], ['RSI 75 or higher', '−1']],
     },
     {
-      id: 'ma72', label: '72-day EMA position', weight: '15%', maxPoints: '±1.0',
-      note: 'Medium-term trend/pullback signal. Below the 72-day EMA gets a pullback bonus; above it gets an extension penalty.',
-      rules: [
-        ['Price below 72EMA', '+1.0', 'Pullback vs medium trend'],
-        ['Price above 72EMA', '−1.0', 'Above medium trend / less attractive entry'],
-      ],
+      id: 'ma72', label: '72-day EMA distance', weight: '15%', formula: 'clamp(−distance% ÷ 10)',
+      note: 'Medium-term trend. Measured as percentage distance from the 72-day EMA, so a small dip is scored differently from a deep one.',
+      scale: [['10% below', '+1'], ['5% below', '+0.5'], ['at the 72EMA', '0'], ['5% above', '−0.5'], ['10%+ above', '−1']],
     },
     {
-      id: 'fg', label: 'Fear & Greed', weight: '15%', maxPoints: '±1.0',
-      note: 'Broad market sentiment. Fear is treated as constructive for long-term accumulators; greed is treated as caution.',
-      rules: [
-        ['F&G < 30', '+1.0', 'Fear / pessimism'],
-        ['30–70', '0', 'Neutral sentiment'],
-        ['F&G > 70', '−1.0', 'Greed / complacency'],
-      ],
+      id: 'fg', label: 'Fear & Greed', weight: '15%', formula: 'clamp((50 − F&G) ÷ 25)',
+      note: 'Broad market sentiment. Fear is constructive for long-term accumulators; greed is treated as caution.',
+      scale: [['25 or lower', '+1'], ['37.5', '+0.5'], ['50', '0'], ['62.5', '−0.5'], ['75 or higher', '−1']],
     },
     {
-      id: 'fpe', label: 'Forward P/E', weight: '10%', maxPoints: '±1.0',
-      note: 'Valuation signal for stocks only. Excluded for crypto, hedges, MSTR, and assets without meaningful earnings estimates.',
-      rules: [
-        ['F/PE < 20', '+1.0', 'Cheap vs expected earnings'],
-        ['20–40', '0', 'Neutral valuation'],
-        ['F/PE > 40', '−1.0', 'Premium valuation'],
-      ],
+      id: 'fpe', label: 'Forward P/E', weight: '10%', formula: 'clamp((30 − F/PE) ÷ 15)',
+      note: 'Valuation, for assets where earnings make it meaningful. Excluded for crypto, hedges, MSTR, negative forward earnings, and missing data — and when excluded its weight is removed, not zeroed.',
+      scale: [['P/E 15 or lower', '+1'], ['P/E 22.5', '+0.5'], ['P/E 30', '0'], ['P/E 37.5', '−0.5'], ['P/E 45 or higher', '−1']],
     },
     {
-      id: 'analyst', label: 'Analyst consensus', weight: '5%', maxPoints: '+1.0 / −1.0',
-      note: 'Small tie-breaker from external consensus ratings; deliberately low weight so it cannot dominate technical/valuation signals.',
-      rules: [
-        ['Strong Buy', '+1.0', 'Consensus support'],
-        ['Buy', '+0.5', 'Moderate consensus support'],
-        ['Hold', '0', 'Neutral'],
-        ['Sell / Strong Sell', '−1.0', 'Consensus caution'],
-      ],
+      id: 'analyst', label: 'Analyst consensus', weight: '5%', formula: 'symmetric mapping',
+      note: 'Small tie-breaker from sell-side consensus. Excluded entirely when no analyst covers the asset, rather than being read as a Hold.',
+      scale: [['Strong Buy', '+1'], ['Buy', '+0.5'], ['Hold', '0'], ['Sell', '−0.5'], ['Strong Sell', '−1']],
     },
   ],
   thresholds: [
@@ -114,6 +113,18 @@ export const TAG_STYLES = {
   CORE:'#22D3EE', HEDGE:'#FBBF24', SAT:'#A78BFA', INCOME:'#34D399',
   CRYPTO:'#F97316', TECH:'#818CF8', STOCK:'#60A5FA', ETF:'#34D399',
 };
+
+// Starting points for the "Add account" picker, not a closed set: portfolio
+// names are free text (1–40 chars), so anything here is a shortcut for typing,
+// and "Custom…" still accepts whatever the user wants. The picker merges these
+// with the names the account already uses, so the list reflects real usage
+// rather than staying frozen at whatever ships here.
+export const ACCOUNT_TYPES = [
+  'Roth IRA',
+  'Traditional IRA',
+  'Individual',
+  'Brokerage',
+];
 
 export const THEMES = {
   dark: {
@@ -209,83 +220,143 @@ export function fmtPrice(p) {
   return p.toFixed(3);
 }
 
-export function computeScore(rsi, fg, fpe, rating, isCrypto = false, aboveMa72 = null, ma200dist = null) {
-  let score = 5;
-  if (rsi != null) {
-    if (rsi < 30) score += 2;
-    else if (rsi < 50) score += 1;
-    else if (rsi > 70) score -= 2;
-    else if (rsi > 60) score -= 1;
-  }
-  if (fg != null) {
-    if (fg < 30) score += 1;
-    else if (fg > 70) score -= 1;
-  }
-  if (!isCrypto && fpe != null) {
-    if (fpe < 20) score += 1;
-    else if (fpe > 40) score -= 1;
-  }
-  if (rating === 'STRONG BUY') score += 1;
-  else if (rating === 'BUY') score += 0.5;
-  else if (rating === 'SELL' || rating === 'STRONG SELL') score -= 1;
-  // 72 EMA: contrarian — below = pullback zone (+1), above = extended (-1)
-  if (aboveMa72 != null) score += aboveMa72 ? -1 : 1;
-  // 200 SMA distance: graduated scoring
-  if (ma200dist != null) {
-    if (ma200dist < 0)        score += 1.5;  // below baseline — strong DCA zone
-    else if (ma200dist > 20)  score -= 1.5;  // significantly extended
-    else if (ma200dist > 10)  score -= 0.5;  // slightly extended
-    // 0–10%: neutral, no adjustment
-  }
-  return Math.max(0, Math.min(10, Math.round(score * 10) / 10));
+const clamp1 = (x) => Math.max(-1, Math.min(1, x));
+const finite = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+/** Percentage distance of price from a moving average, or null if unusable. */
+function pctFrom(price, ma) {
+  const p = finite(price), m = finite(ma);
+  if (p == null || m == null || m === 0) return null;
+  return ((p - m) / m) * 100;
 }
 
-export function scoreContributions({ rsi, fg, fpe, rating, isCrypto = false, aboveMa72 = null, ma200dist = null, sym, tag } = {}) {
+/**
+ * THE single rule deciding whether Forward P/E counts. Scoring, tooltips and the
+ * methodology drawer all read this, so they can never disagree — previously the
+ * contribution list excluded hedges while the score still applied their P/E.
+ */
+export function forwardPeEligibility({ sym, tag, isCrypto = false, fpe } = {}) {
+  const s = typeof sym === 'string' ? sym.toUpperCase() : '';
+  if (isCrypto || tag === 'CRYPTO') return { eligible: false, reason: 'Excluded: earnings-based valuation is not meaningful for crypto' };
+  if (tag === 'HEDGE') return { eligible: false, reason: 'Excluded: earnings-based valuation is not meaningful for hedge assets' };
+  if (s === 'MSTR') return { eligible: false, reason: 'Excluded for MSTR: Bitcoin treasury company' };
+  const v = finite(typeof fpe === 'string' ? parseFloat(fpe) : fpe);
+  if (v == null) return { eligible: false, reason: 'Missing Forward P/E data' };
+  // A negative forward P/E means expected losses. Left in, the formula reads it
+  // as spectacularly cheap and hands out the maximum valuation bonus.
+  if (v <= 0) return { eligible: false, reason: `Excluded: forward P/E ${v.toFixed(1)} implies negative earnings` };
+  return { eligible: true, value: v };
+}
+
+const ANALYST_SIGNAL = { 'STRONG BUY': 1, 'BUY': 0.5, 'HOLD': 0, 'SELL': -0.5, 'STRONG SELL': -1 };
+
+/**
+ * Normalized signals for one asset. Every entry carries its published weight and
+ * a signal in [-1, +1]; entries with available:false are dropped from the score
+ * entirely rather than contributing zero.
+ */
+export function scoreSignals(input = {}) {
+  const { rsi, fg, fpe, rating, analystCount, price, ma72, ma200, sym, tag, isCrypto = false } = input;
+  const W = SCORE_WEIGHTS;
   const rows = [];
-  const add = (id, label, points, detail, available = true) => rows.push({ id, label, points, detail, available });
+  const push = (id, label, weight, n, detail, available = true) =>
+    rows.push({ id, label, weight, n: available ? n : null, detail, available });
 
-  if (rsi == null) add('rsi', 'RSI', 0, 'Missing RSI data', false);
-  else if (rsi < 30) add('rsi', 'RSI', 2, `RSI ${rsi}: oversold`);
-  else if (rsi < 50) add('rsi', 'RSI', 1, `RSI ${rsi}: cooling off`);
-  else if (rsi > 70) add('rsi', 'RSI', -2, `RSI ${rsi}: overbought`);
-  else if (rsi > 60) add('rsi', 'RSI', -1, `RSI ${rsi}: warming up`);
-  else add('rsi', 'RSI', 0, `RSI ${rsi}: neutral`);
+  // 200-day SMA distance — accepts a precomputed distance or derives it.
+  const d200 = finite(input.ma200dist) != null ? finite(input.ma200dist) : pctFrom(price, ma200);
+  if (d200 == null) push('ma200', '200-day SMA', W.ma200, null, 'Missing 200SMA data', false);
+  else push('ma200', '200-day SMA', W.ma200, clamp1(-d200 / 20), `${d200 >= 0 ? '+' : ''}${d200.toFixed(1)}% vs 200SMA`);
 
-  if (fg == null) add('fg', 'Fear & Greed', 0, 'Missing sentiment data', false);
-  else if (fg < 30) add('fg', 'Fear & Greed', 1, `F&G ${fg}: fear`);
-  else if (fg > 70) add('fg', 'Fear & Greed', -1, `F&G ${fg}: greed`);
-  else add('fg', 'Fear & Greed', 0, `F&G ${fg}: neutral`);
+  // RSI
+  const r = finite(rsi);
+  if (r == null) push('rsi', 'RSI', W.rsi, null, 'Missing RSI data', false);
+  else push('rsi', 'RSI', W.rsi, clamp1((50 - r) / 25), `RSI ${r}`);
 
-  const peExcluded = isCrypto || tag === 'CRYPTO' || tag === 'HEDGE' || sym === 'MSTR';
-  if (peExcluded) add('fpe', 'Forward P/E', 0, sym === 'MSTR' ? 'Excluded for MSTR: Bitcoin treasury company' : 'Excluded: P/E is not meaningful for this asset type', false);
-  else if (fpe == null) add('fpe', 'Forward P/E', 0, 'Missing Forward P/E data', false);
-  else if (fpe < 20) add('fpe', 'Forward P/E', 1, `F/PE ${parseFloat(fpe).toFixed(1)}: inexpensive`);
-  else if (fpe > 40) add('fpe', 'Forward P/E', -1, `F/PE ${parseFloat(fpe).toFixed(1)}: premium`);
-  else add('fpe', 'Forward P/E', 0, `F/PE ${parseFloat(fpe).toFixed(1)}: neutral`);
+  // 72-day EMA distance — percentage, not a boolean.
+  const d72 = finite(input.ma72dist) != null ? finite(input.ma72dist) : pctFrom(price, ma72);
+  if (d72 == null) push('ma72', '72-day EMA', W.ma72, null, 'Missing 72EMA data', false);
+  else push('ma72', '72-day EMA', W.ma72, clamp1(-d72 / 10), `${d72 >= 0 ? '+' : ''}${d72.toFixed(1)}% vs 72EMA`);
 
-  if (rating === 'STRONG BUY') add('analyst', 'Analyst consensus', 1, 'Strong Buy consensus');
-  else if (rating === 'BUY') add('analyst', 'Analyst consensus', 0.5, 'Buy consensus');
-  else if (rating === 'SELL' || rating === 'STRONG SELL') add('analyst', 'Analyst consensus', -1, 'Sell-side caution');
-  else add('analyst', 'Analyst consensus', 0, `${rating || 'Hold'} consensus`);
+  // Fear & Greed
+  const g = finite(fg);
+  if (g == null) push('fg', 'Fear & Greed', W.fg, null, 'Missing sentiment data', false);
+  else push('fg', 'Fear & Greed', W.fg, clamp1((50 - g) / 25), `F&G ${g}`);
 
-  if (aboveMa72 == null) add('ma72', '72-day EMA', 0, 'Missing 72EMA data', false);
-  else add('ma72', '72-day EMA', aboveMa72 ? -1 : 1, aboveMa72 ? 'Price above 72EMA' : 'Price below 72EMA pullback');
+  // Forward P/E
+  const pe = forwardPeEligibility({ sym, tag, isCrypto, fpe });
+  if (!pe.eligible) push('fpe', 'Forward P/E', W.fpe, null, pe.reason, false);
+  else push('fpe', 'Forward P/E', W.fpe, clamp1((30 - pe.value) / 15), `F/PE ${pe.value.toFixed(1)}`);
 
-  if (ma200dist == null) add('ma200', '200-day SMA', 0, 'Missing 200SMA data', false);
-  else if (ma200dist < 0) add('ma200', '200-day SMA', 1.5, `${ma200dist.toFixed(1)}% below 200SMA`);
-  else if (ma200dist > 20) add('ma200', '200-day SMA', -1.5, `${ma200dist.toFixed(1)}% above 200SMA`);
-  else if (ma200dist > 10) add('ma200', '200-day SMA', -0.5, `${ma200dist.toFixed(1)}% above 200SMA`);
-  else add('ma200', '200-day SMA', 0, `${ma200dist.toFixed(1)}% above 200SMA: near baseline`);
+  // Analyst consensus — absent coverage is an absence, not a Hold.
+  const covered = finite(analystCount) != null ? finite(analystCount) > 0 : false;
+  const key = typeof rating === 'string' ? rating.toUpperCase() : null;
+  if (!covered || key == null || ANALYST_SIGNAL[key] === undefined) {
+    push('analyst', 'Analyst consensus', W.analyst, null, 'No analyst coverage', false);
+  } else {
+    push('analyst', 'Analyst consensus', W.analyst, ANALYST_SIGNAL[key], `${key.toLowerCase()} consensus`);
+  }
 
   return rows;
 }
 
+/**
+ * score = 5 + 5 × ( Σ wᵢ·nᵢ ) ÷ ( Σ wᵢ over available components )
+ * Bounded to [0,10] by construction because every nᵢ ∈ [-1,1]; the clamp is
+ * only float defence. Coverage is the share of total weight that was usable.
+ */
+export function scoreAsset(input = {}) {
+  const signals = scoreSignals(input);
+  const totalWeight = Object.values(SCORE_WEIGHTS).reduce((a, b) => a + b, 0);
+  let num = 0, active = 0;
+  for (const s of signals) if (s.available && s.n != null) { num += s.weight * s.n; active += s.weight; }
+
+  const score = active === 0 ? 5 : 5 + 5 * (num / active);
+  return {
+    score: Math.max(0, Math.min(10, Math.round(score * 10) / 10)),
+    coverage: Math.round((active / totalWeight) * 100),
+    activeWeight: active,
+    signals,
+  };
+}
+
+/** Kept as the single entry point callers use for a bare number. */
+export function computeScore(input = {}) {
+  return scoreAsset(input).score;
+}
+
+/**
+ * Per-signal breakdown in SCORE POINTS (already weighted and renormalized), so
+ * the numbers shown add up to the distance from the 5.0 centre. `n` is kept
+ * alongside for anything that wants the raw normalized signal — the two must
+ * never be confused: n is in [-1,1], points are score units.
+ */
+export function scoreContributions(input = {}) {
+  const { signals, activeWeight } = scoreAsset(input);
+  return signals.map(s => ({
+    id: s.id,
+    label: s.label,
+    weight: s.weight,
+    n: s.n,
+    // 5 x wi x ni / active-weight: this component's actual push on the score.
+    points: (s.available && s.n != null && activeWeight > 0)
+      ? Math.round((5 * s.weight * s.n / activeWeight) * 100) / 100
+      : 0,
+    detail: s.detail,
+    available: s.available,
+  }));
+}
+
 export function scoreTooltip(h) {
-  if (!h) return '0–10 absolute score from RSI, moving averages, sentiment, valuation, and analyst consensus.';
+  if (!h) return '0–10 absolute score from moving averages, RSI, sentiment, valuation, and analyst consensus.';
+  const { coverage } = scoreAsset({ ...h, isCrypto: h.tag === 'CRYPTO' });
   const factors = scoreContributions({ ...h, isCrypto: h.tag === 'CRYPTO' })
     .filter(x => x.points !== 0)
     .sort((a, b) => Math.abs(b.points) - Math.abs(a.points))
     .slice(0, 3)
-    .map(x => `${x.label} ${x.points > 0 ? '+' : ''}${x.points}: ${x.detail}`);
-  return [`Score ${h.score}/10 (${RATING_LABELS[h.displayRating] || h.displayRating || 'Neutral'})`, ...factors].join('\n');
+    .map(x => `${x.label} ${x.points > 0 ? '+' : ''}${x.points.toFixed(2)}: ${x.detail}`);
+  return [
+    `Score ${h.score}/10 (${RATING_LABELS[h.displayRating] || h.displayRating || 'Neutral'})`,
+    ...factors,
+    `Signal coverage: ${coverage}%`,
+  ].join('\n');
 }

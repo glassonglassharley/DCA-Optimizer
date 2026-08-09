@@ -4,8 +4,9 @@ import { SignIn as ClerkSignIn, SignedOut, UserButton, useUser } from '@clerk/ne
 import { Ic } from '../components/icons';
 import {
   TICKER_COLORS, RATING_STYLES, RATING_LABELS, TAG_STYLES, THEMES, GLOSSARY,
-  SCORE_METHODOLOGY, getColor, fgColor, fgLabel, rsiSignalColor, shade, fmtPrice,
-  computeScore, ratingForScore, ratingRangeText, scoreContributions, scoreTooltip,
+  ACCOUNT_TYPES, SCORE_METHODOLOGY, getColor, fgColor, fgLabel, rsiSignalColor,
+  shade, fmtPrice, scoreAsset, ratingForScore, ratingRangeText,
+  scoreContributions, scoreTooltip,
 } from '../components/tokens';
 
 // ─── Ticker disambiguation ────────────────────────────────────────────────────
@@ -514,9 +515,14 @@ function DrawerSection({ theme, title, children }) {
 
 function MethodologyDrawer({ theme, open, onClose, holding }) {
   if (!open) return null;
-  const example = holding || { sym: 'MSTR', score: 7.5, displayRating: 'BUY', rsi: 47, fg: 30, fpe: null, tag: 'STOCK', rating: 'BUY', aboveMa72: false, ma200dist: -3.2 };
+  const example = holding || {
+    sym: 'MSTR', displayRating: 'BUY', tag: 'STOCK', rating: 'BUY', analystCount: 12,
+    rsi: 47, fg: 30, fpe: null, price: 100, ma72: 104, ma200: 103.2,
+  };
+  const scored = scoreAsset({ ...example, isCrypto: example.tag === 'CRYPTO' });
   const rows = scoreContributions({ ...example, isCrypto: example.tag === 'CRYPTO' });
-  const total = Math.max(0, Math.min(10, SCORE_METHODOLOGY.baseScore + rows.reduce((s, r) => s + r.points, 0))).toFixed(1);
+  const total = scored.score.toFixed(1);
+  const coverage = scored.coverage;
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', justifyContent: 'flex-end' }}>
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(2,6,23,.68)', backdropFilter: 'blur(4px)' }}/>
@@ -532,8 +538,14 @@ function MethodologyDrawer({ theme, open, onClose, holding }) {
 
         <div style={{ padding: 14, borderRadius: 14, background: theme.card, border: `1px solid ${theme.line}` }}>
           <div style={{ fontSize: 13, color: theme.text2, lineHeight: 1.55 }}>
-            DCA Anchor starts each asset at <b style={{ color: theme.text }}>5.0</b> and adds or subtracts signal points from RSI, moving averages, sentiment, valuation, and analyst consensus. The final score is clamped from <b style={{ color: theme.text }}>0 to 10</b>. It is market-data context, not financial advice.
+            Every asset starts from a neutral centre of <b style={{ color: theme.text }}>5.0</b>. Each signal is normalized to a continuous value between <b style={{ color: theme.text }}>−1 and +1</b>, multiplied by its published weight, and averaged over the weights actually available. A score of exactly 5.0 means a genuinely neutral setup. It is market-data context, not financial advice.
           </div>
+          <div style={{ marginTop: 10, padding: '9px 11px', borderRadius: 10, background: theme.bg2, border: `1px solid ${theme.line}`, fontFamily: 'var(--font-mono)', fontSize: 11.5, color: theme.brand }}>
+            {SCORE_METHODOLOGY.formula}
+          </div>
+          <ul style={{ margin: '10px 0 0', paddingLeft: 18, fontSize: 12, color: theme.text2, lineHeight: 1.6 }}>
+            {SCORE_METHODOLOGY.summary.map((s, i) => <li key={i}>{s}</li>)}
+          </ul>
         </div>
 
         <DrawerSection theme={theme} title="Weights and normalization">
@@ -545,8 +557,9 @@ function MethodologyDrawer({ theme, open, onClose, holding }) {
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: theme.brand, width: 34, textAlign: 'right' }}>{c.weight}</div>
               </div>
               <div style={{ fontSize: 11.5, color: theme.text3, lineHeight: 1.45, marginTop: 4 }}>{c.note}</div>
+              <div style={{ marginTop: 6, fontFamily: 'var(--font-mono)', fontSize: 11, color: theme.brand2 }}>{c.formula}</div>
               <div style={{ marginTop: 8, display: 'grid', gap: 4 }}>
-                {c.rules.map(([rule, pts, note]) => <div key={rule} style={{ display: 'grid', gridTemplateColumns: '1fr 48px', gap: 8, fontSize: 11.5, color: theme.text2 }}><span><b style={{ color: theme.text }}>{rule}</b> — {note}</span><span style={{ color: pts.startsWith('+') ? '#4ADE80' : pts.startsWith('−') ? '#F87171' : theme.text3, fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{pts}</span></div>)}
+                {c.scale.map(([at, n]) => <div key={at} style={{ display: 'grid', gridTemplateColumns: '1fr 48px', gap: 8, fontSize: 11.5, color: theme.text2 }}><span>{at}</span><span style={{ color: n.startsWith('+') ? '#4ADE80' : n.startsWith('−') ? '#F87171' : theme.text3, fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{n}</span></div>)}
               </div>
             </div>
           ))}
@@ -558,9 +571,20 @@ function MethodologyDrawer({ theme, open, onClose, holding }) {
 
         <DrawerSection theme={theme} title={`Example calculation${example.sym ? `: ${example.sym}` : ''}`}>
           <div style={{ border: `1px solid ${theme.line}`, borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: theme.bg2, fontSize: 12 }}><b>Base score</b><span style={{ fontFamily: 'var(--font-mono)' }}>{SCORE_METHODOLOGY.baseScore.toFixed(1)}</span></div>
-            {rows.map(r => <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1fr 48px', gap: 8, padding: '9px 12px', borderTop: `1px solid ${theme.line}`, fontSize: 12 }}><span style={{ color: r.available ? theme.text2 : theme.text3 }}><b style={{ color: theme.text }}>{r.label}</b> — {r.detail}</span><span style={{ color: r.points > 0 ? '#4ADE80' : r.points < 0 ? '#F87171' : theme.text3, fontFamily: 'var(--font-mono)', textAlign: 'right' }}>{r.points > 0 ? '+' : ''}{r.points.toFixed(1)}</span></div>)}
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', borderTop: `1px solid ${theme.line2}`, fontSize: 13 }}><b>Final score</b><b style={{ color: theme.brand, fontFamily: 'var(--font-mono)' }}>{example.score ?? total}/10</b></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: theme.bg2, fontSize: 12 }}><b>Neutral centre</b><span style={{ fontFamily: 'var(--font-mono)' }}>{SCORE_METHODOLOGY.baseScore.toFixed(1)}</span></div>
+            {rows.map(r => (
+              <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1fr 92px', gap: 8, padding: '9px 12px', borderTop: `1px solid ${theme.line}`, fontSize: 12 }}>
+                <span style={{ color: r.available ? theme.text2 : theme.text3 }}>
+                  <b style={{ color: theme.text }}>{r.label}</b> — {r.detail}
+                  {r.available && <span style={{ color: theme.text3 }}> · signal {r.n > 0 ? '+' : ''}{r.n.toFixed(2)} × {Math.round(r.weight * 100)}%</span>}
+                </span>
+                <span style={{ color: !r.available ? theme.text3 : r.points > 0 ? '#4ADE80' : r.points < 0 ? '#F87171' : theme.text3, fontFamily: 'var(--font-mono)', textAlign: 'right' }}>
+                  {r.available ? `${r.points > 0 ? '+' : ''}${r.points.toFixed(2)}` : 'excluded'}
+                </span>
+              </div>
+            ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', borderTop: `1px solid ${theme.line2}`, fontSize: 13 }}><b>Final score</b><b style={{ color: theme.brand, fontFamily: 'var(--font-mono)' }}>{total}/10</b></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 12px', borderTop: `1px solid ${theme.line}`, fontSize: 11.5, color: theme.text3 }}><span>Signal coverage</span><span style={{ fontFamily: 'var(--font-mono)' }}>{coverage}%</span></div>
           </div>
         </DrawerSection>
 
@@ -642,7 +666,7 @@ function visiblePortfolios(list) {
 // ─── Portfolio switcher ───────────────────────────────────────────────────────
 
 function PortfolioBar({ theme, portfolios, activeId, onSelect, onCreate, onRename, onDelete }) {
-  // 'idle' | 'creating' | 'renaming' | 'confirmDelete'
+  // 'idle' | 'picking' | 'creating' | 'renaming' | 'confirmDelete'
   const [mode, setMode] = useState('idle');
   const [menuOpen, setMenuOpen] = useState(false);
   const [name, setName] = useState('');
@@ -652,7 +676,17 @@ function PortfolioBar({ theme, portfolios, activeId, onSelect, onCreate, onRenam
   // Requirement: an account always keeps at least one portfolio.
   const canDelete = portfolios.length > 1;
 
-  if (!portfolios.length && mode !== 'creating') return null;
+  if (!portfolios.length && mode !== 'creating' && mode !== 'picking') return null;
+
+  // The picker's vocabulary is the shipped list plus the names this account
+  // already uses, so it isn't frozen at whatever ACCOUNT_TYPES ships with.
+  // Names currently in use are then dropped: offering one would only produce a
+  // duplicate_name rejection from the unique (clerk_user_id, lower(name)) index.
+  const taken = new Set(portfolios.map(p => String(p.name || '').toLowerCase()));
+  const suggestions = [...ACCOUNT_TYPES, ...portfolios.map(p => p.name)]
+    .filter(n => typeof n === 'string' && n.trim())
+    .filter((n, i, all) => all.findIndex(m => m.toLowerCase() === n.toLowerCase()) === i)
+    .filter(n => !taken.has(n.toLowerCase()));
 
   const reset = () => { setMode('idle'); setMenuOpen(false); setName(''); setError(null); };
 
@@ -767,9 +801,48 @@ function PortfolioBar({ theme, portfolios, activeId, onSelect, onCreate, onRenam
           >Delete</button>
           <button onClick={reset} style={btn({ border: `1px solid ${theme.line2}`, background: 'transparent', color: theme.text3 })}>Cancel</button>
         </span>
+      ) : mode === 'picking' ? (
+        <span style={{ display: 'inline-flex', alignItems: 'center', position: 'relative' }}>
+          <button
+            onClick={reset}
+            style={btn({ border: `1px dashed ${theme.brand}`, background: 'transparent', color: theme.brand, fontWeight: 600 })}
+          >+ New</button>
+
+          <div style={{
+            position: 'absolute', top: 32, left: 0, zIndex: 30, minWidth: 172,
+            background: theme.card, border: `1px solid ${theme.line2}`, borderRadius: 10,
+            boxShadow: '0 10px 30px rgba(0,0,0,.45)', overflow: 'hidden',
+          }}>
+            <div style={{
+              padding: '8px 12px', fontSize: 9.5, fontWeight: 700, letterSpacing: '.1em',
+              textTransform: 'uppercase', color: theme.text3, borderBottom: `1px solid ${theme.line}`,
+            }}>Add account</div>
+
+            {suggestions.map(n => (
+              <button
+                key={n}
+                onClick={() => run(() => onCreate(n))}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px',
+                  fontSize: 12, background: 'transparent', border: 'none', color: theme.text, cursor: 'pointer',
+                }}
+              >{n}</button>
+            ))}
+
+            <button
+              onClick={() => { setMode('creating'); setName(''); setError(null); }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px',
+                fontSize: 12, background: 'transparent', border: 'none',
+                borderTop: suggestions.length ? `1px solid ${theme.line}` : 'none',
+                color: theme.text2, cursor: 'pointer',
+              }}
+            >Custom…</button>
+          </div>
+        </span>
       ) : (
         <button
-          onClick={() => { setMode('creating'); setName(''); setMenuOpen(false); setError(null); }}
+          onClick={() => { setMode('picking'); setName(''); setMenuOpen(false); setError(null); }}
           style={btn({ border: `1px dashed ${theme.line2}`, background: 'transparent', color: theme.text3, fontWeight: 600 })}
         >+ New</button>
       )}
@@ -2604,7 +2677,21 @@ export default function Home() {
       const aboveMa72 = m.aboveMa72 ?? null;
       const aboveMa200 = m.aboveMa200 ?? null;
       const ma200dist = (m.currentPrice && m.ma200) ? ((m.currentPrice - m.ma200) / m.ma200) * 100 : null;
-      const score = computeScore(rsi, fgIndex, (isCrypto || sym === 'MSTR') ? null : fpe, rating, isCrypto, aboveMa72, ma200dist);
+      const ma72dist = (m.currentPrice && m.ma72) ? ((m.currentPrice - m.ma72) / m.ma72) * 100 : null;
+      // Everything the scoring engine reads, in one object, so the holding row
+      // carries the same inputs the tooltip and methodology drawer re-score from.
+      const scoreInput = {
+        sym, tag, isCrypto,
+        rsi,
+        fg: fgIndex,
+        fpe,
+        rating,
+        analystCount: m.analystCount ?? null,
+        price: m.currentPrice ?? null,
+        ma72: m.ma72 ?? null,
+        ma200: m.ma200 ?? null,
+      };
+      const { score, coverage } = scoreAsset(scoreInput);
       const displayRating = ratingForScore(score);
       return {
         sym,
@@ -2615,14 +2702,17 @@ export default function Home() {
         fpe,
         fg: fgIndex,
         rating,
+        analystCount: m.analystCount ?? null,
         displayRating,
         score,
+        coverage,
         tag,
         ma72: m.ma72 || null,
         ma200: m.ma200 || null,
         aboveMa72,
         aboveMa200,
         ma200dist: ma200dist != null ? parseFloat(ma200dist.toFixed(1)) : null,
+        ma72dist: ma72dist != null ? parseFloat(ma72dist.toFixed(1)) : null,
         wkLow:  m.fiftyTwoWeekLow  ?? null,
         wkHigh: m.fiftyTwoWeekHigh ?? null,
         why: null,
