@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Head from 'next/head';
 import { SignIn as ClerkSignIn, SignedOut, UserButton, useUser } from '@clerk/nextjs';
 import { Ic } from '../components/icons';
+import PlaidSandboxPanel from '../components/PlaidSandboxPanel';
 import {
   TICKER_COLORS, RATING_STYLES, RATING_LABELS, TAG_STYLES, THEMES, GLOSSARY,
   ACCOUNT_TYPES, SCORE_METHODOLOGY, getColor, fgColor, fgLabel, rsiSignalColor,
@@ -977,6 +978,8 @@ function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefre
         </div>
       )}
 
+      <PlaidSandboxPanel theme={theme}/>
+
       <div style={{ height: 110 }}/>
     </div>
   );
@@ -1715,7 +1718,7 @@ function GlossaryScreen({ theme, onBack }) {
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
-function SettingsScreen({ theme, onBack, onGlossary, user, claim, onImport }) {
+function SettingsScreen({ theme, onBack, onGlossary, user }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ padding: '10px 16px 4px', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1735,30 +1738,6 @@ function SettingsScreen({ theme, onBack, onGlossary, user, claim, onImport }) {
           <UserButton afterSignOutUrl="/"/>
         </Card>
       </div>
-
-      {claim && claim.available && (
-        <div style={{ padding: '0 16px' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.12em', color: theme.text3, padding: '4px 4px 8px' }}>IMPORT</div>
-          <Card theme={theme} style={{ padding: 16 }}>
-            <div style={{ fontSize: 13, color: theme.text, fontWeight: 600, marginBottom: 4 }}>Bring in your old watchlist</div>
-            <div style={{ fontSize: 11.5, color: theme.text3, lineHeight: 1.45, marginBottom: 12 }}>
-              Copies your pre-login watchlist into this account.
-              Available once, only while this account is empty.
-            </div>
-            <button
-              onClick={onImport}
-              disabled={claim.busy}
-              style={{
-                width: '100%', height: 42, borderRadius: 12, border: 'none',
-                background: claim.busy ? theme.pillBg : `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`,
-                color: claim.busy ? theme.text3 : '#fff', fontWeight: 700, fontSize: 13,
-                cursor: claim.busy ? 'default' : 'pointer',
-              }}
-            >{claim.busy ? 'Importing…' : 'Import my data'}</button>
-            {claim.error && <div style={{ marginTop: 8, fontSize: 11.5, color: '#F87171' }}>{claim.error}</div>}
-          </Card>
-        </div>
-      )}
 
       {[
         { title: 'PORTFOLIO', items: [{ label: 'DCA Frequency', val: 'Weekly', icon: '🔁' }, { label: 'Buy Day', val: 'Mondays', icon: '📅' }, { label: 'Target Allocation', val: 'Balanced', icon: '⚖️' }] },
@@ -2477,7 +2456,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState(null);
   const [syncState, setSyncState] = useState('ok'); // 'ok' | 'saving' | 'offline'
-  const [claim, setClaim] = useState({ available: false, busy: false, error: null });
   const [methodologyAsset, setMethodologyAsset] = useState(null);
   const [methodologyOpen, setMethodologyOpen] = useState(false);
 
@@ -2560,36 +2538,6 @@ export default function Home() {
     }
     loadPortfolios({ silent: !!(cached && cached.length) });
   }, [authLoaded, isSignedIn, userId, loadPortfolios, resolveActive]);
-
-  // Whether the one-time legacy import is still on the table.
-  useEffect(() => {
-    if (!authLoaded || !isSignedIn) return;
-    let cancelled = false;
-    fetch('/api/claim')
-      .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (d && !cancelled) setClaim(c => ({ ...c, available: !!d.available })); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [authLoaded, isSignedIn, portfolios.length]);
-
-  const runImport = async () => {
-    setClaim(c => ({ ...c, busy: true, error: null }));
-    try {
-      const r = await fetch('/api/claim', { method: 'POST' });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.message || d.error || 'Import failed.');
-      const list = visiblePortfolios(Array.isArray(d.portfolios) ? d.portfolios : []);
-      commit(list);
-      selectActive(list[0]?.id ?? null);
-      setClaim({ available: false, busy: false, error: null });
-      setSyncState('ok');
-      replace('dashboard');
-      setTab('home');
-    } catch (err) {
-      console.error('[claim] import failed:', err.message);
-      setClaim(c => ({ ...c, busy: false, error: err.message }));
-    }
-  };
 
   /** A brand-new account has no rows yet; create the default watchlist on demand. */
   const ensurePortfolio = async () => {
@@ -2868,7 +2816,7 @@ export default function Home() {
   else if (cur.screen === 'detail') body = <AssetDetail theme={theme} sym={cur.arg} onBack={back} holdings={holdings} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology}/>;
   else if (cur.screen === 'add') body = <AddTicker theme={theme} onBack={back} selectedTickers={selectedTickers} onToggle={toggleTicker}/>;
   else if (cur.screen === 'glossary') body = <GlossaryScreen theme={theme} onBack={back}/>;
-  else if (cur.screen === 'settings') body = <SettingsScreen theme={theme} onBack={back} onGlossary={() => replace('glossary')} user={userLabel} claim={claim} onImport={runImport}/>;
+  else if (cur.screen === 'settings') body = <SettingsScreen theme={theme} onBack={back} onGlossary={() => replace('glossary')} user={userLabel}/>;
   else if (cur.screen === 'calculator') body = <CalculatorScreen theme={theme} holdings={holdings}/>;
   else body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology}/>;
 
