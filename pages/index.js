@@ -978,7 +978,7 @@ function EmptyPortfolioCta({ theme, plaidConfigured, activePortfolioName, onConn
   );
 }
 
-function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefresh, lastRefreshed, fgIndex, onDelete, onMethodology, plaidConfigured, activePortfolioName, registerPlaidOpen }) {
+function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefresh, lastRefreshed, fgIndex, onDelete, onMethodology, plaidConfigured, plaidEnv, activePortfolioName, registerPlaidOpen }) {
   const [focused, setFocused] = useState(null);
   // The panel registers its open() here so contextual buttons drive one flow.
   const openPlaid = useRef(null);
@@ -991,6 +991,10 @@ function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefre
       <StaxHeader theme={theme} user={user} fgIndex={fgIndex} onAdd={() => navigate('add')} onLogout={onLogout}/>
       <NotifBar theme={theme} holdings={holdings}/>
       <TransparencyBar theme={theme}/>
+
+      <div style={{ padding: '0 16px' }}>
+        <ContributionPlanCard theme={theme} holdings={holdings} accountName={activePortfolioName} onPick={sym => navigate('detail', sym)}/>
+      </div>
 
       <PortfolioSummary theme={theme} holdings={holdings} onMethodology={() => onMethodology(top)}/>
 
@@ -1039,7 +1043,7 @@ function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefre
       <PlaidSandboxPanel
         theme={theme}
         registerOpen={fn => { openPlaid.current = fn; registerPlaidOpen?.(fn); }}
-        activePortfolioName={activePortfolioName}
+        plaidEnv={plaidEnv}
       />
 
       <div style={{ height: 110 }}/>
@@ -1100,6 +1104,75 @@ function TopPickCard({ theme, holding: h, onOpen, onMethodology }) {
   );
 }
 
+function ContributionPlanCard({ theme, holdings, accountName = 'this account', onPick }) {
+  const [amount, setAmount] = useState(500);
+  const candidates = useMemo(() => holdings.filter(isRankable).slice(0, 4), [holdings]);
+  const dollars = Number.isFinite(Number(amount)) ? Math.max(0, Number(amount)) : 0;
+  const weights = candidates.map(h => Math.max(0.35, ((Number(h.score) || 5) - 3.5)));
+  const totalWeight = weights.reduce((s, w) => s + w, 0) || 1;
+  const plan = candidates.map((h, i) => ({
+    h,
+    amount: Math.round((dollars * weights[i] / totalWeight) / 5) * 5,
+  })).filter(r => r.amount > 0);
+  const allocated = plan.reduce((s, r) => s + r.amount, 0);
+  if (plan.length && allocated !== dollars) plan[0].amount += dollars - allocated;
+  const best = plan[0]?.h;
+
+  return (
+    <Card theme={theme} tint={best ? getColor(best.sym) : theme.brand} style={{ padding: 0, overflow: 'hidden' }}>
+      <div style={{ padding: '14px 16px 12px', borderBottom: `1px solid ${theme.line}`, background: `linear-gradient(135deg, ${theme.brand}14, transparent 58%)` }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 8px 18px ${theme.brand}44`, flex: '0 0 auto' }}>🧭</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.12em', color: theme.brand, textTransform: 'uppercase' }}>Contribution allocation assistant</div>
+            <div style={{ marginTop: 3, fontSize: 18, fontWeight: 800, color: theme.text, letterSpacing: '-.03em' }}>Plan your next scheduled DCA</div>
+            <div style={{ marginTop: 3, fontSize: 11.5, color: theme.text3, lineHeight: 1.45 }}>Rule-based allocation for {accountName || 'this account'} using transparent entry-condition signals. Educational, not advice.</div>
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 118, height: 34, borderRadius: 10, padding: '0 10px', background: theme.bg2, border: `1px solid ${theme.line}`, color: theme.text3 }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800 }}>$</span>
+            <input
+              value={amount}
+              onChange={e => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+              aria-label="Contribution amount"
+              style={{ width: 72, border: 'none', outline: 'none', background: 'transparent', color: theme.text, fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 800 }}
+            />
+          </label>
+        </div>
+      </div>
+      {plan.length ? (
+        <div style={{ padding: '10px 16px 12px', display: 'grid', gap: 8 }}>
+          {plan.map(({ h, amount: amt }, idx) => {
+            const c = getColor(h.sym);
+            const sd = scoreDisplay(h);
+            const why = h.ma200dist != null && h.ma200dist < 0
+              ? `${Math.abs(h.ma200dist).toFixed(1)}% below 200MA`
+              : h.rsi != null && h.rsi < 50
+                ? `cooler RSI ${h.rsi}`
+                : sd.partial
+                  ? 'limited coverage'
+                  : 'best current setup';
+            return (
+              <button key={h.sym} type="button" onClick={() => onPick?.(h.sym)} style={{ border: 'none', background: idx === 0 ? c + '16' : theme.bg2, borderRadius: 12, padding: '10px 11px', display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', cursor: 'pointer', textAlign: 'left' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+                  <TickerDot sym={h.sym} theme={theme} size={26}/>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: 'var(--font-mono)', color: theme.text, fontSize: 13, fontWeight: 800 }}>{h.sym} <span style={{ color: c }}>Score {h.score}</span></div>
+                    <div style={{ marginTop: 2, color: theme.text3, fontSize: 10.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{RATING_LABELS[h.displayRating] || sd.label || 'Setup'} · {why}</div>
+                  </div>
+                </div>
+                <div style={{ color: theme.text, fontFamily: 'var(--font-mono)', fontSize: 15, fontWeight: 900 }}>${Math.max(0, amt).toLocaleString()}</div>
+              </button>
+            );
+          })}
+          <div style={{ fontSize: 10.5, color: theme.text3, lineHeight: 1.45 }}>Use this as a contribution checklist. You choose the rules and final orders; DCA Anchor ranks current conditions, not suitability.</div>
+        </div>
+      ) : (
+        <div style={{ padding: 16, fontSize: 12, color: theme.text3 }}>Add tickers with live signals to generate a contribution plan.</div>
+      )}
+    </Card>
+  );
+}
+
 function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefreshed, onDelete, onMethodology }) {
   const minsAgo = lastRefreshed ? Math.floor((Date.now() - lastRefreshed) / 60000) : null;
   return (
@@ -1120,8 +1193,8 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
             </button>
           </div>
         </div>
-        <div className="dca-hold-grid" title="Buy rating comes from the 0–10 composite score. Hover/tap rating pills for exact ranges." style={{ padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
-          {['ASSET', 'BUY RATING', 'RSI', 'PE', '200MA', 'PRICE'].map((h, i) => (
+        <div className="dca-hold-grid" title="DCA signal comes from the 0–10 composite score. Hover/tap signal pills for exact ranges." style={{ padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
+          {['ASSET', 'SIGNAL', 'RSI', 'PE', '200MA', 'PRICE'].map((h, i) => (
             <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
           ))}
         </div>
@@ -1271,9 +1344,6 @@ function HoldingRow({ h, theme, last, onClick, onDelete }) {
         {sd.usable
           ? <RatingPill rating={h.displayRating || 'HOLD'}/>
           : <span style={{ fontSize: 10.5, fontWeight: 700, color: theme.text3, whiteSpace: 'nowrap' }}>No score</span>}
-        <span title={COVERAGE_TOOLTIP} style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: coverageColor(h.coverage, theme), whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {sd.usable ? `${formatCoverage(h.coverage)}${sd.partial ? ' · partial' : ''}` : '0% coverage'}
-        </span>
       </div>
       <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', color: h.rsi == null ? theme.text3 : h.rsi < 30 ? '#10B981' : h.rsi > 70 ? '#EF4444' : theme.text }}>{h.rsi ?? '—'}</div>
       <div title={h.sym === 'MSTR' ? 'PE excluded — Bitcoin treasury company' : undefined} style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', color: (h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.sym === 'MSTR' || h.fpe == null) ? theme.text3 : h.fpe < 15 ? '#10B981' : h.fpe <= 35 ? '#F59E0B' : '#EF4444' }}>
@@ -2231,14 +2301,13 @@ function DesktopSidebar({ theme, activeScreen, onNav, user, onLogout }) {
     { id: 'home',     label: 'Home',       icon: Ic.home,    screen: 'dashboard' },
     { id: 'calc',     label: 'Calculator', icon: Ic.calc,    screen: 'calculator' },
     { id: 'compare',  label: 'Compare',    icon: Ic.compare, screen: 'compare',   href: '/compare' },
-    { id: 'glossary', label: 'Glossary',   icon: Ic.book,    screen: 'glossary',  href: '/glossary' },
   ];
   return (
     <div style={{
       width: 200, background: '#0B1020',
       borderRight: `1px solid rgba(255,255,255,.08)`,
       display: 'flex', flexDirection: 'column',
-      position: 'sticky', top: 0, height: '100vh', overflow: 'hidden',
+      position: 'sticky', top: 0, height: '100vh', overflowY: 'auto', overflowX: 'hidden',
       flex: '0 0 200px',
     }}>
       {/* Branding */}
@@ -2252,7 +2321,7 @@ function DesktopSidebar({ theme, activeScreen, onNav, user, onLogout }) {
         <div style={{ fontSize: 14, fontWeight: 700, color: theme.text, letterSpacing: '-.02em' }}>DCA Anchor</div>
       </div>
       {/* Nav items */}
-      <div style={{ flex: 1, padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <div style={{ flex: '0 0 auto', padding: '10px 8px 14px', display: 'flex', flexDirection: 'column', gap: 2, minHeight: 184 }}>
         {items.map(item => {
           const on = activeScreen === item.screen || (item.screen === 'dashboard' && activeScreen === 'detail');
           const navStyle = {
@@ -2262,7 +2331,7 @@ function DesktopSidebar({ theme, activeScreen, onNav, user, onLogout }) {
             color: on ? theme.brand : theme.text3,
             fontWeight: on ? 600 : 500, fontSize: 13,
             borderLeft: on ? `2px solid ${theme.brand}` : '2px solid transparent',
-            transition: 'all .15s', textAlign: 'left', textDecoration: 'none', width: '100%',
+            transition: 'all .15s', textAlign: 'left', textDecoration: 'none', width: '100%', minHeight: 42,
           };
           if (item.href) {
             return (
@@ -2279,6 +2348,16 @@ function DesktopSidebar({ theme, activeScreen, onNav, user, onLogout }) {
             </button>
           );
         })}
+        <a href="/glossary" aria-label="Open Glossary" style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+          minHeight: 42, borderRadius: 10, cursor: 'pointer', textDecoration: 'none',
+          background: '#12243A', color: theme.text2, fontWeight: 600, fontSize: 13,
+          borderLeft: `2px solid ${theme.brand}`, width: '100%',
+          visibility: 'visible', opacity: 1, pointerEvents: 'auto',
+        }}>
+          {Ic.book(16, theme.brand)}
+          Glossary
+        </a>
       </div>
       {/* User */}
       {user && (
@@ -2310,7 +2389,10 @@ function DesktopHeader({ theme, user, onAdd, onLogout, fgIndex, plaidConfigured,
       position: 'sticky', top: 0, zIndex: 10,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: theme.text, letterSpacing: '-.01em' }}>Dashboard</div>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: theme.text, letterSpacing: '-.02em' }}>DCA Contribution Planner</div>
+          <div style={{ marginTop: 1, fontSize: 10.5, color: theme.text3 }}>Decide where your next scheduled contribution goes.</div>
+        </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         {fgIndex != null && (
@@ -2320,7 +2402,6 @@ function DesktopHeader({ theme, user, onAdd, onLogout, fgIndex, plaidConfigured,
             {fgLbl && <span style={{ fontSize: 10, color: theme.text3 }}>· {fgLbl}</span>}
           </div>
         )}
-        {user && <div style={{ fontSize: 12, color: theme.text3, fontFamily: 'var(--font-mono)', background: theme.bg2, padding: '4px 10px', borderRadius: 7, border: `1px solid ${theme.line}` }}>{user}</div>}
         {plaidConfigured && (
           <button
             onClick={onImport}
@@ -2474,8 +2555,10 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState(null);
   const [syncState, setSyncState] = useState('ok'); // 'ok' | 'saving' | 'offline'
-  // Server-derived: whether the Plaid connect flow would actually succeed.
+  // Server-derived: whether the Plaid connect flow would actually succeed, and
+  // which environment it targets. Both are owner-only and false/null otherwise.
   const [plaidConfigured, setPlaidConfigured] = useState(false);
+  const [plaidEnv, setPlaidEnv] = useState(null);
   // Dashboard registers the panel's open() here so the header's Import can call it.
   const dashboardPlaidOpen = useRef(null);
   const [methodologyAsset, setMethodologyAsset] = useState(null);
@@ -2531,6 +2614,7 @@ export default function Home() {
       }
       const d = await r.json();
       setPlaidConfigured(d.plaidConfigured === true);
+      setPlaidEnv(typeof d.plaidEnv === 'string' ? d.plaidEnv : null);
       const list = Array.isArray(d.portfolios) ? d.portfolios : [];
       const visible = visiblePortfolios(list);
       commit(visible);
@@ -2833,12 +2917,12 @@ export default function Home() {
   };
 
   let body;
-  if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology} plaidConfigured={plaidConfigured} activePortfolioName={activePortfolio?.name || null} registerPlaidOpen={fn => { dashboardPlaidOpen.current = fn; }}/>;
+  if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology} plaidConfigured={plaidConfigured} plaidEnv={plaidEnv} activePortfolioName={activePortfolio?.name || null} registerPlaidOpen={fn => { dashboardPlaidOpen.current = fn; }}/>;
   else if (cur.screen === 'detail') body = <AssetDetail theme={theme} sym={cur.arg} onBack={back} holdings={holdings} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology}/>;
   else if (cur.screen === 'add') body = <AddTicker theme={theme} onBack={back} selectedTickers={selectedTickers} onToggle={toggleTicker}/>;
   else if (cur.screen === 'settings') body = <SettingsScreen theme={theme} onBack={back} user={userLabel}/>;
   else if (cur.screen === 'calculator') body = <CalculatorScreen theme={theme} holdings={holdings}/>;
-  else body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology} plaidConfigured={plaidConfigured} activePortfolioName={activePortfolio?.name || null} registerPlaidOpen={fn => { dashboardPlaidOpen.current = fn; }}/>;
+  else body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology} plaidConfigured={plaidConfigured} plaidEnv={plaidEnv} activePortfolioName={activePortfolio?.name || null} registerPlaidOpen={fn => { dashboardPlaidOpen.current = fn; }}/>;
 
   return (
     <>
@@ -2959,7 +3043,10 @@ export default function Home() {
                 <div className="dca-dsk-only">
                   <NotifBar theme={theme} holdings={holdings}/>
                   <div style={{ marginTop: 16, marginBottom: 16 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: theme.text3, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Holdings — sorted by score</div>
+                    <div style={{ marginBottom: 14 }}>
+                      <ContributionPlanCard theme={theme} holdings={holdings} accountName={activePortfolio?.name || null} onPick={sym => navigate('detail', sym)}/>
+                    </div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: theme.text3, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Holdings — sorted by DCA setup</div>
                     <HoldingsTable theme={theme} holdings={holdings} loading={loading || dataLoading} onPick={sym => navigate('detail', sym)} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} onDelete={removeTicker} onMethodology={openMethodology}/>
                     {holdings.length === 0 && !(loading || dataLoading) && (
                       <EmptyPortfolioCta

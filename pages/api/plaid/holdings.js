@@ -1,5 +1,5 @@
 /**
- * POST /api/plaid/holdings — exchange, fetch, discard. Sandbox only.
+ * POST /api/plaid/holdings — exchange, fetch, discard. Owner only.
  *
  * The access_token lives as a local `const` inside this handler and nowhere
  * else. It is never returned to the client, never logged, never written to
@@ -8,11 +8,13 @@
  * which is the intended trade-off for holding no credentials at rest.
  *
  * The holdings themselves are equally transient: mapped to a lean display shape
- * and returned in the response body. Nothing is stored.
+ * and returned in the response body. Nothing is stored HERE — importing symbols
+ * into a portfolio is a separate, explicitly confirmed step in
+ * /api/plaid/import, which never receives a token of any kind.
  */
 
-import { plaidClient, plaidErrorPayload, plaidErrorStatus } from '../../../lib/plaid';
-import { requireUser, methodNotAllowed } from '../../../lib/apiAuth';
+import { plaidClient, plaidErrorPayload, plaidErrorStatus, PLAID_ENV } from '../../../lib/plaid';
+import { requireOwner, methodNotAllowed } from '../../../lib/apiAuth';
 
 /** Positions arrive keyed by security_id; resolve to something displayable. */
 function shapeHoldings(data) {
@@ -41,7 +43,7 @@ function shapeHoldings(data) {
 export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store');
 
-    const userId = requireUser(req, res);
+    const userId = requireOwner(req, res);
     if (!userId) return;
 
     if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
@@ -64,7 +66,7 @@ export default async function handler(req, res) {
         const shaped = shapeHoldings(holdings.data);
 
         return res.status(200).json({
-            sandbox: true,
+            environment: PLAID_ENV,
             fetchedAt: new Date().toISOString(),
             accounts: (holdings.data.accounts || []).length,
             holdings: shaped,
