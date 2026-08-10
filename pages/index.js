@@ -2321,14 +2321,19 @@ function DesktopSidebar({ theme, activeScreen, onNav, user, onLogout }) {
     { id: 'home',     label: 'Home',       icon: Ic.home,    screen: 'dashboard' },
     { id: 'calc',     label: 'Calculator', icon: Ic.calc,    screen: 'calculator' },
     { id: 'compare',  label: 'Compare',    icon: Ic.compare, screen: 'compare',   href: '/compare' },
+    { id: 'glossary', label: 'Glossary',   icon: Ic.book,    screen: 'glossary',  href: '/glossary' },
   ];
   return (
+    // The parent <aside class="dca-sidebar"> is a COLUMN flex container, so a
+    // flex-basis here sizes the HEIGHT, not the width. `flex: 0 0 200px` sat
+    // next to `width: 200` and read like a width, but it capped this box at
+    // 200px tall and overrode height:100vh — clipping every nav item past the
+    // third. Width comes from the aside; this only needs to fill it.
     <div style={{
       width: 200, background: '#0B1020',
       borderRight: `1px solid rgba(255,255,255,.08)`,
       display: 'flex', flexDirection: 'column',
-      position: 'sticky', top: 0, height: '100vh', overflowY: 'auto', overflowX: 'hidden',
-      flex: '0 0 200px',
+      position: 'sticky', top: 0, height: '100%', overflowY: 'auto', overflowX: 'hidden',
     }}>
       {/* Branding */}
       <div style={{ padding: '22px 16px 18px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: `1px solid rgba(255,255,255,.06)` }}>
@@ -2341,7 +2346,7 @@ function DesktopSidebar({ theme, activeScreen, onNav, user, onLogout }) {
         <div style={{ fontSize: 14, fontWeight: 700, color: theme.text, letterSpacing: '-.02em' }}>DCA Anchor</div>
       </div>
       {/* Nav items */}
-      <div style={{ flex: '0 0 auto', padding: '10px 8px 14px', display: 'flex', flexDirection: 'column', gap: 2, minHeight: 184 }}>
+      <div style={{ flex: 1, padding: '10px 8px 14px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {items.map(item => {
           const on = activeScreen === item.screen || (item.screen === 'dashboard' && activeScreen === 'detail');
           const navStyle = {
@@ -2368,16 +2373,6 @@ function DesktopSidebar({ theme, activeScreen, onNav, user, onLogout }) {
             </button>
           );
         })}
-        <a href="/glossary" aria-label="Open Glossary" style={{
-          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-          minHeight: 42, borderRadius: 10, cursor: 'pointer', textDecoration: 'none',
-          background: '#12243A', color: theme.text2, fontWeight: 600, fontSize: 13,
-          borderLeft: `2px solid ${theme.brand}`, width: '100%',
-          visibility: 'visible', opacity: 1, pointerEvents: 'auto',
-        }}>
-          {Ic.book(16, theme.brand)}
-          Glossary
-        </a>
       </div>
       {/* User */}
       {user && (
