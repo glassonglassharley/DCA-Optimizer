@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Head from 'next/head';
-import { SignIn as ClerkSignIn, SignedOut, UserButton, useUser } from '@clerk/nextjs';
+import { SignIn as ClerkSignIn, SignInButton, UserButton, useUser } from '@clerk/nextjs';
 import { Ic } from '../components/icons';
 import PlaidSandboxPanel from '../components/PlaidSandboxPanel';
 import {
@@ -82,8 +82,8 @@ function RatingPill({ rating, large }) {
       display: 'inline-flex', alignItems: 'center', gap: 6,
       padding: large ? '6px 12px' : '3px 9px',
       borderRadius: 999, background: s.bg, border: `1px solid ${s.bd}`,
-      color: s.fg, fontWeight: 700, fontSize: large ? 12 : 10.5, letterSpacing: '.06em',
-      flex: '0 0 auto', maxWidth: '100%',
+      color: s.fg, fontWeight: 700, fontSize: large ? 12 : 10, letterSpacing: '.04em',
+      flex: '0 0 auto', maxWidth: '100%', whiteSpace: 'nowrap', lineHeight: 1.1,
     }}>
       <span style={{ width: 6, height: 6, borderRadius: 999, background: s.fg, boxShadow: `0 0 8px ${s.fg}`, flex: '0 0 auto' }}/>
       {RATING_LABELS[rating] || rating}
@@ -319,7 +319,7 @@ function PercentileBar({ theme, v, sectorAvg }) {
 
 // ─── Header / Nav ─────────────────────────────────────────────────────────────
 
-function StaxHeader({ theme, onAdd, onLogout, user, fgIndex }) {
+function StaxHeader({ theme, onAdd, onLogout, user, fgIndex, isSignedIn }) {
   const [fgOpen, setFgOpen] = useState(false);
   const fgC = fgIndex != null ? fgColor(fgIndex) : theme.text3;
   const fgLbl = fgIndex != null ? fgLabel(fgIndex) : null;
@@ -363,6 +363,11 @@ function StaxHeader({ theme, onAdd, onLogout, user, fgIndex }) {
         <IconBtn theme={theme} href="/glossary" title="Glossary">
           <span style={{ fontSize: 14, fontWeight: 700, color: theme.text2, fontFamily: 'var(--font-mono)' }}>?</span>
         </IconBtn>
+        {!isSignedIn && (
+          <SignInButton mode="modal">
+            <button type="button" style={{ height: 34, padding: '0 10px', borderRadius: 10, border: `1px solid ${theme.line2}`, background: theme.pillBg, color: theme.text2, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Sign in</button>
+          </SignInButton>
+        )}
         <button type="button" onClick={onAdd} style={{
           height: 34, padding: '0 12px', borderRadius: 10, border: 'none', cursor: 'pointer',
           background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`,
@@ -634,6 +639,13 @@ function PortfolioSummary({ theme, holdings, onMethodology }) {
 // than username now that identity comes from Clerk.
 
 const PORTFOLIOS_KEY = (userId) => `dca_portfolios_${userId}`;
+const GUEST_USER_ID = 'guest';
+const GUEST_PORTFOLIO_ID = 'guest-watchlist';
+const guestPortfolios = () => [{ id: GUEST_PORTFOLIO_ID, name: 'Watchlist', kind: 'watchlist', items: [] }];
+
+function makeLocalPortfolio(name, kind = 'portfolio') {
+  return { id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, kind, items: [] };
+}
 
 function readCachedPortfolios(userId) {
   if (!userId) return null;
@@ -685,7 +697,7 @@ function visiblePortfolios(list) {
 
 // ─── Portfolio switcher ───────────────────────────────────────────────────────
 
-function PortfolioBar({ theme, portfolios, activeId, onSelect, onCreate, onRename, onDelete }) {
+function PortfolioBar({ theme, portfolios, activeId, onSelect, onCreate, onRename, onDelete, isSignedIn }) {
   // 'idle' | 'picking' | 'creating' | 'renaming' | 'confirmDelete'
   const [mode, setMode] = useState('idle');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -724,7 +736,7 @@ function PortfolioBar({ theme, portfolios, activeId, onSelect, onCreate, onRenam
   });
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px 0', flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px 0', flexWrap: 'nowrap', overflowX: 'auto', overflowY: 'visible', WebkitOverflowScrolling: 'touch' }}>
       {portfolios.map(p => {
         const on = p.id === activeId;
         return (
@@ -867,7 +879,13 @@ function PortfolioBar({ theme, portfolios, activeId, onSelect, onCreate, onRenam
         >+ New</button>
       )}
 
-      {error && <span style={{ fontSize: 11, color: '#F87171', width: '100%' }}>{error}</span>}
+      {!isSignedIn && (
+        <SignInButton mode="modal">
+          <button style={btn({ border: `1px solid ${theme.brand}55`, background: theme.brand + '14', color: theme.brand, fontWeight: 700, whiteSpace: 'nowrap', flex: '0 0 auto' })}>Sign in to save</button>
+        </SignInButton>
+      )}
+
+      {error && <span style={{ fontSize: 11, color: '#F87171', flex: '0 0 auto' }}>{error}</span>}
     </div>
   );
 }
@@ -978,7 +996,7 @@ function EmptyPortfolioCta({ theme, plaidConfigured, activePortfolioName, onConn
   );
 }
 
-function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefresh, lastRefreshed, fgIndex, onDelete, onMethodology, plaidConfigured, plaidEnv, activePortfolioName, registerPlaidOpen }) {
+function Dashboard({ theme, navigate, onLogout, user, isSignedIn, holdings, loading, onRefresh, lastRefreshed, fgIndex, onDelete, onMethodology, plaidConfigured, plaidEnv, activePortfolioName, registerPlaidOpen }) {
   const [focused, setFocused] = useState(null);
   // The panel registers its open() here so contextual buttons drive one flow.
   const openPlaid = useRef(null);
@@ -988,7 +1006,7 @@ function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefre
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <StaxHeader theme={theme} user={user} fgIndex={fgIndex} onAdd={() => navigate('add')} onLogout={onLogout}/>
+      <StaxHeader theme={theme} user={user} isSignedIn={isSignedIn} fgIndex={fgIndex} onAdd={() => navigate('add')} onLogout={onLogout}/>
       <NotifBar theme={theme} holdings={holdings}/>
       <TransparencyBar theme={theme}/>
 
@@ -1040,11 +1058,13 @@ function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefre
         />
       )}
 
-      <PlaidSandboxPanel
-        theme={theme}
-        registerOpen={fn => { openPlaid.current = fn; registerPlaidOpen?.(fn); }}
-        plaidEnv={plaidEnv}
-      />
+      {plaidConfigured && (
+        <PlaidSandboxPanel
+          theme={theme}
+          registerOpen={fn => { openPlaid.current = fn; registerPlaidOpen?.(fn); }}
+          plaidEnv={plaidEnv}
+        />
+      )}
 
       <div style={{ height: 110 }}/>
     </div>
@@ -1073,7 +1093,7 @@ function TopPickCard({ theme, holding: h, onOpen, onMethodology }) {
             {Ic.spark(11, '#FBBF24')} live data
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 0, flexWrap: 'wrap' }}>
           <TickerDot sym={h.sym} size={42} theme={theme}/>
           <div style={{ flex: '1 1 auto', minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
@@ -1089,7 +1109,7 @@ function TopPickCard({ theme, holding: h, onOpen, onMethodology }) {
               {sd.usable ? `${formatCoverage(h.coverage)} signal coverage · ${sd.label}` : 'Insufficient data — no scoring signals'}
             </div>
           </div>
-          <RatingPill rating={h.displayRating || h.rating} large/>
+          <div style={{ marginLeft: 'auto', flex: '0 0 auto' }}><RatingPill rating={h.displayRating || h.rating} large/></div>
         </div>
       </div>
       <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1121,7 +1141,7 @@ function ContributionPlanCard({ theme, holdings, accountName = 'this account', o
   return (
     <Card theme={theme} tint={best ? getColor(best.sym) : theme.brand} style={{ padding: 0, overflow: 'hidden' }}>
       <div style={{ padding: '14px 16px 12px', borderBottom: `1px solid ${theme.line}`, background: `linear-gradient(135deg, ${theme.brand}14, transparent 58%)` }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ width: 34, height: 34, borderRadius: 10, background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 8px 18px ${theme.brand}44`, flex: '0 0 auto' }}>🧭</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.12em', color: theme.brand, textTransform: 'uppercase' }}>Contribution allocation assistant</div>
@@ -1152,7 +1172,7 @@ function ContributionPlanCard({ theme, holdings, accountName = 'this account', o
                   ? 'limited coverage'
                   : 'best current setup';
             return (
-              <button key={h.sym} type="button" onClick={() => onPick?.(h.sym)} style={{ border: 'none', background: idx === 0 ? c + '16' : theme.bg2, borderRadius: 12, padding: '10px 11px', display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center', cursor: 'pointer', textAlign: 'left' }}>
+              <button key={h.sym} type="button" onClick={() => onPick?.(h.sym)} style={{ border: 'none', background: idx === 0 ? c + '16' : theme.bg2, borderRadius: 12, padding: '10px 11px', display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto', gap: 10, alignItems: 'center', cursor: 'pointer', textAlign: 'left', minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
                   <TickerDot sym={h.sym} theme={theme} size={26}/>
                   <div style={{ minWidth: 0 }}>
@@ -1186,7 +1206,7 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
               {onDelete && holdings.length > 0 && ' · swipe or double-click a row to remove'}
             </div>
           </div>
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 auto' }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flex: '1 1 150px', minWidth: 0, flexWrap: 'wrap' }}>
             {minsAgo != null && <span style={{ fontSize: 10, color: theme.text3, whiteSpace: 'nowrap' }}>Updated {minsAgo === 0 ? 'just now' : `${minsAgo}m ago`}</span>}
             <button onClick={onRefresh} style={{ fontSize: 11, fontWeight: 600, color: theme.text2, background: theme.pillBg, border: `1px solid ${theme.line}`, padding: '5px 9px', borderRadius: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', flex: '0 0 auto' }}>
               {Ic.refresh(12, theme.text2)} Refresh
@@ -2379,7 +2399,7 @@ function DesktopSidebar({ theme, activeScreen, onNav, user, onLogout }) {
   );
 }
 
-function DesktopHeader({ theme, user, onAdd, onLogout, fgIndex, plaidConfigured, onImport }) {
+function DesktopHeader({ theme, user, isSignedIn, onAdd, onLogout, fgIndex, plaidConfigured, onImport }) {
   const fgC = fgIndex != null ? fgColor(fgIndex) : theme.text3;
   const fgLbl = fgIndex != null ? fgLabel(fgIndex) : null;
   return (
@@ -2413,6 +2433,16 @@ function DesktopHeader({ theme, user, onAdd, onLogout, fgIndex, plaidConfigured,
               display: 'flex', alignItems: 'center', gap: 6,
             }}
           >{Ic.refresh(12, theme.text2)} Connect brokerage</button>
+        )}
+        {!isSignedIn && (
+          <SignInButton mode="modal">
+            <button style={{
+              height: 34, padding: '0 13px', borderRadius: 9, cursor: 'pointer',
+              border: `1px solid ${theme.brand}66`, background: theme.brand + '16',
+              color: theme.brand, fontSize: 12, fontWeight: 700,
+              display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+            }}>Sign in to save</button>
+          </SignInButton>
         )}
         <button onClick={onAdd} style={{
           height: 34, padding: '0 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
@@ -2542,8 +2572,10 @@ export default function Home() {
   const theme = THEMES.dark;
   const { isLoaded: authLoaded, isSignedIn, user: clerkUser } = useUser();
   const userId = clerkUser?.id || null;
+  const signedIn = authLoaded && isSignedIn;
+  const storageId = signedIn ? userId : GUEST_USER_ID;
   const userLabel =
-    clerkUser?.primaryEmailAddress?.emailAddress || clerkUser?.username || 'Account';
+    signedIn ? (clerkUser?.primaryEmailAddress?.emailAddress || clerkUser?.username || 'Account') : 'Guest';
 
   const [stack, setStack] = useState([{ screen: 'dashboard' }]);
   const [tab, setTab] = useState('home');
@@ -2583,8 +2615,8 @@ export default function Home() {
   // Every state change goes through here so the cache can never drift from state.
   const commit = useCallback((next) => {
     setPortfolios(next);
-    writeCachedPortfolios(userId, next);
-  }, [userId]);
+    writeCachedPortfolios(storageId, next);
+  }, [storageId]);
 
   /**
    * Whatever the user is already on wins as long as it still exists; otherwise
@@ -2593,18 +2625,18 @@ export default function Home() {
    */
   const resolveActive = useCallback((list, prev) => {
     if (prev && list.some(p => p.id === prev)) return prev;
-    const saved = readActiveId(userId);
+    const saved = readActiveId(storageId);
     if (saved && list.some(p => p.id === saved)) return saved;
     return list[0]?.id ?? null;
-  }, [userId]);
+  }, [storageId]);
 
   const selectActive = useCallback((id) => {
     setActiveId(id);
-    writeActiveId(userId, id);
-  }, [userId]);
+    writeActiveId(storageId, id);
+  }, [storageId]);
 
   const loadPortfolios = useCallback(async ({ silent = false } = {}) => {
-    if (!userId) return;
+    if (!signedIn || !userId) return;
     if (!silent) setDataLoading(true);
     try {
       const r = await fetch('/api/portfolios');
@@ -2626,29 +2658,40 @@ export default function Home() {
     } finally {
       setDataLoading(false);
     }
-  }, [userId, commit, resolveActive]);
+  }, [signedIn, userId, commit, resolveActive]);
 
   // Hydrate from cache first so a slow or failed request never shows an empty
   // portfolio, then reconcile with the server.
   useEffect(() => {
     if (!authLoaded) return;
-    if (!isSignedIn) {
-      setPortfolios([]);
-      setActiveId(null);
+    if (!signedIn) {
+      const cachedGuest = visiblePortfolios(readCachedPortfolios(GUEST_USER_ID));
+      const local = cachedGuest && cachedGuest.length ? cachedGuest : guestPortfolios();
+      setPortfolios(local);
+      setActiveId(prev => resolveActive(local, prev));
+      setPlaidConfigured(false);
+      setPlaidEnv(null);
+      setSyncState('ok');
       setDataLoading(false);
       return;
     }
-    const cached = visiblePortfolios(readCachedPortfolios(userId));
+    const cached = visiblePortfolios(readCachedPortfolios(storageId));
     if (cached && cached.length) {
       setPortfolios(cached);
       setActiveId(prev => resolveActive(cached, prev));
     }
     loadPortfolios({ silent: !!(cached && cached.length) });
-  }, [authLoaded, isSignedIn, userId, loadPortfolios, resolveActive]);
+  }, [authLoaded, signedIn, storageId, loadPortfolios, resolveActive]);
 
   /** A brand-new account has no rows yet; create the default watchlist on demand. */
   const ensurePortfolio = async () => {
     if (activePortfolio) return activePortfolio;
+    if (!signedIn) {
+      const created = guestPortfolios()[0];
+      commit([created]);
+      selectActive(created.id);
+      return created;
+    }
     const r = await fetch('/api/portfolios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2663,6 +2706,12 @@ export default function Home() {
   };
 
   const createPortfolio = async (name) => {
+    if (!signedIn) {
+      const created = makeLocalPortfolio(name);
+      commit([...portfolios, created]);
+      selectActive(created.id);
+      return;
+    }
     const r = await fetch('/api/portfolios', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2676,6 +2725,10 @@ export default function Home() {
   };
 
   const renamePortfolio = async (id, name) => {
+    if (!signedIn) {
+      commit(portfolios.map(p => p.id === id ? { ...p, name } : p));
+      return;
+    }
     const r = await fetch(`/api/portfolios/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -2692,6 +2745,11 @@ export default function Home() {
     if (portfolios.length <= 1) throw new Error('You need at least one portfolio.');
 
     const remaining = portfolios.filter(p => p.id !== id);
+    if (!signedIn) {
+      commit(remaining);
+      if (id === activePortfolio?.id) selectActive(remaining[0]?.id ?? null);
+      return;
+    }
     const r = await fetch(`/api/portfolios/${id}`, { method: 'DELETE' });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.message || d.error || 'Could not delete portfolio.');
@@ -2803,8 +2861,6 @@ export default function Home() {
   }, [selectedTickers, metricsMap, fgIndex]);
 
   const toggleTicker = async (sym) => {
-    if (!isSignedIn) return;
-
     let target;
     try {
       target = await ensurePortfolio();
@@ -2825,6 +2881,11 @@ export default function Home() {
         : [...p.items, { symbol: sym, tag: null, dca: false, shares: null, costBasis: null }],
     });
     commit(optimistic);
+
+    if (!signedIn) {
+      setSyncState('ok');
+      return;
+    }
     setSyncState('saving');
 
     try {
@@ -2852,7 +2913,6 @@ export default function Home() {
    * can never toggle the symbol back on.
    */
   const removeTicker = async (sym) => {
-    if (!isSignedIn) return;
     const target = activePortfolio;
     if (!target || !(target.items || []).some(i => i.symbol === sym)) return;
 
@@ -2860,6 +2920,11 @@ export default function Home() {
       ...p,
       items: p.items.filter(i => i.symbol !== sym),
     }));
+
+    if (!signedIn) {
+      setSyncState('ok');
+      return;
+    }
     setSyncState('saving');
 
     try {
@@ -2878,19 +2943,7 @@ export default function Home() {
     }
   };
 
-  // Clerk decides what renders: no session means the sign-in screen, full stop.
   if (!authLoaded) return <div style={{ background: theme.bg, minHeight: '100vh' }}/>;
-  if (!isSignedIn) {
-    return (
-      <>
-        <Head>
-          <title>DCA Anchor — Sign in</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-        </Head>
-        <SignedOut><SignIn theme={theme}/></SignedOut>
-      </>
-    );
-  }
 
   const isDashboard = cur.screen === 'dashboard';
 
@@ -2917,12 +2970,12 @@ export default function Home() {
   };
 
   let body;
-  if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology} plaidConfigured={plaidConfigured} plaidEnv={plaidEnv} activePortfolioName={activePortfolio?.name || null} registerPlaidOpen={fn => { dashboardPlaidOpen.current = fn; }}/>;
+  if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={userLabel} isSignedIn={signedIn} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology} plaidConfigured={signedIn && plaidConfigured} plaidEnv={plaidEnv} activePortfolioName={activePortfolio?.name || null} registerPlaidOpen={fn => { dashboardPlaidOpen.current = fn; }}/>;
   else if (cur.screen === 'detail') body = <AssetDetail theme={theme} sym={cur.arg} onBack={back} holdings={holdings} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology}/>;
   else if (cur.screen === 'add') body = <AddTicker theme={theme} onBack={back} selectedTickers={selectedTickers} onToggle={toggleTicker}/>;
   else if (cur.screen === 'settings') body = <SettingsScreen theme={theme} onBack={back} user={userLabel}/>;
   else if (cur.screen === 'calculator') body = <CalculatorScreen theme={theme} holdings={holdings}/>;
-  else body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology} plaidConfigured={plaidConfigured} plaidEnv={plaidEnv} activePortfolioName={activePortfolio?.name || null} registerPlaidOpen={fn => { dashboardPlaidOpen.current = fn; }}/>;
+  else body = <Dashboard theme={theme} navigate={navigate} user={userLabel} isSignedIn={signedIn} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology} plaidConfigured={signedIn && plaidConfigured} plaidEnv={plaidEnv} activePortfolioName={activePortfolio?.name || null} registerPlaidOpen={fn => { dashboardPlaidOpen.current = fn; }}/>;
 
   return (
     <>
@@ -2937,7 +2990,7 @@ export default function Home() {
 
       <style jsx global>{`
         :root { --font-ui: "Geist", system-ui, sans-serif; --font-mono: "Geist Mono", ui-monospace, monospace; }
-        html, body { margin: 0; padding: 0; background: ${theme.bg}; font-family: var(--font-ui); -webkit-font-smoothing: antialiased; height: 100%; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+        html, body { margin: 0; padding: 0; background: ${theme.bg}; font-family: var(--font-ui); -webkit-font-smoothing: antialiased; min-height: 100%; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
         * { box-sizing: border-box; }
         @keyframes staxFade { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
         button { font-family: inherit; }
@@ -2961,8 +3014,19 @@ export default function Home() {
         /* Holdings table columns. The mobile shell is capped at 430px whatever
            the viewport, so the rating column only widens once the desktop
            layout is actually in play and the row has room for it. */
-        .dca-hold-grid { display: grid; gap: 5px;
-                         grid-template-columns: 1.4fr 62px 30px 36px 48px 1fr; }
+        .dca-hold-grid { display: grid; gap: 5px; min-width: 0;
+                         grid-template-columns: minmax(116px,1.25fr) minmax(88px,.75fr) 34px minmax(76px,.7fr); }
+        .dca-hold-grid > :nth-child(4), .dca-hold-grid > :nth-child(5) { display: none !important; }
+        .dca-hold-grid > :nth-child(6) { min-width: 0; overflow-wrap: normal; word-break: keep-all; }
+
+        @media (max-width: 390px) {
+          .dca-hold-grid { grid-template-columns: minmax(118px,1fr) minmax(84px,.72fr) minmax(74px,.62fr); gap: 4px; }
+          .dca-hold-grid > :nth-child(3) { display: none !important; }
+        }
+
+        @media (min-width: 430px) and (max-width: 1099px) {
+          .dca-hold-grid { grid-template-columns: minmax(140px,1.35fr) minmax(96px,.8fr) 34px minmax(80px,.7fr); }
+        }
 
         /* Desktop ≥ 1100px. Below this the two-column split (220px sidebar +
            60/40 columns) leaves the holdings grid less room than its own fixed
@@ -2989,7 +3053,8 @@ export default function Home() {
           .dca-dash-left  { flex: 0 0 60%; overflow-y: auto; border-right: 1px solid rgba(255,255,255,.06); padding: 24px 20px 40px 28px; }
           .dca-dash-right { flex: 0 0 40%; overflow-y: auto; padding: 24px 28px 40px 20px; display: flex; flex-direction: column; gap: 16px; }
 
-          .dca-hold-grid  { grid-template-columns: 1.4fr 88px 30px 36px 48px 1fr; }
+          .dca-hold-grid  { grid-template-columns: minmax(160px,1.4fr) minmax(92px,.8fr) 34px 38px 54px minmax(88px,.7fr); }
+          .dca-hold-grid > :nth-child(3), .dca-hold-grid > :nth-child(4), .dca-hold-grid > :nth-child(5) { display: block !important; }
 
           /* Secondary screens (calc, settings, etc.) centered */
           .dca-panel      { height: 100%; overflow-y: auto; }
@@ -3007,7 +3072,7 @@ export default function Home() {
       <div className="dca-root">
         {/* ── Sidebar (desktop only) ── */}
         <aside className="dca-sidebar">
-          <DesktopSidebar theme={theme} activeScreen={cur.screen} onNav={desktopNav} user={userLabel}/>
+          <DesktopSidebar theme={theme} activeScreen={cur.screen} onNav={desktopNav} user={signedIn ? userLabel : null}/>
         </aside>
 
         {/* ── Main area ── */}
@@ -3024,11 +3089,12 @@ export default function Home() {
               onCreate={createPortfolio}
               onRename={renamePortfolio}
               onDelete={deletePortfolio}
+              isSignedIn={signedIn}
             />
           )}
 
           <div className="dca-dsk-hdr">
-            <DesktopHeader theme={theme} user={userLabel} onAdd={openAddTicker} fgIndex={fgIndex} plaidConfigured={plaidConfigured} onImport={() => { setTab('home'); replace('dashboard'); requestAnimationFrame(() => dashboardPlaidOpen.current?.()); }}/>
+            <DesktopHeader theme={theme} user={userLabel} isSignedIn={signedIn} onAdd={openAddTicker} fgIndex={fgIndex} plaidConfigured={signedIn && plaidConfigured} onImport={() => { setTab('home'); replace('dashboard'); requestAnimationFrame(() => dashboardPlaidOpen.current?.()); }}/>
           </div>
 
           {/* ── Content ── */}
