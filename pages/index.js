@@ -4,7 +4,7 @@ import { SignIn as ClerkSignIn, SignedOut, UserButton, useUser } from '@clerk/ne
 import { Ic } from '../components/icons';
 import PlaidSandboxPanel from '../components/PlaidSandboxPanel';
 import {
-  TICKER_COLORS, RATING_STYLES, RATING_LABELS, TAG_STYLES, THEMES, GLOSSARY,
+  TICKER_COLORS, RATING_STYLES, RATING_LABELS, TAG_STYLES, THEMES,
   ACCOUNT_TYPES, SCORE_METHODOLOGY, getColor, fgColor, fgLabel, rsiSignalColor,
   shade, fmtPrice, scoreAsset, ratingForScore, ratingRangeText,
   scoreContributions, scoreTooltip,
@@ -83,8 +83,9 @@ function RatingPill({ rating, large }) {
       padding: large ? '6px 12px' : '3px 9px',
       borderRadius: 999, background: s.bg, border: `1px solid ${s.bd}`,
       color: s.fg, fontWeight: 700, fontSize: large ? 12 : 10.5, letterSpacing: '.06em',
+      flex: '0 0 auto', maxWidth: '100%',
     }}>
-      <span style={{ width: 6, height: 6, borderRadius: 999, background: s.fg, boxShadow: `0 0 8px ${s.fg}` }}/>
+      <span style={{ width: 6, height: 6, borderRadius: 999, background: s.fg, boxShadow: `0 0 8px ${s.fg}`, flex: '0 0 auto' }}/>
       {RATING_LABELS[rating] || rating}
     </span>
   );
@@ -318,7 +319,7 @@ function PercentileBar({ theme, v, sectorAvg }) {
 
 // ─── Header / Nav ─────────────────────────────────────────────────────────────
 
-function StaxHeader({ theme, onAdd, onGlossary, onLogout, user, fgIndex }) {
+function StaxHeader({ theme, onAdd, onLogout, user, fgIndex }) {
   const [fgOpen, setFgOpen] = useState(false);
   const fgC = fgIndex != null ? fgColor(fgIndex) : theme.text3;
   const fgLbl = fgIndex != null ? fgLabel(fgIndex) : null;
@@ -359,7 +360,7 @@ function StaxHeader({ theme, onAdd, onGlossary, onLogout, user, fgIndex }) {
             )}
           </div>
         )}
-        <IconBtn theme={theme} onClick={onGlossary}>
+        <IconBtn theme={theme} href="/glossary" title="Glossary">
           <span style={{ fontSize: 14, fontWeight: 700, color: theme.text2, fontFamily: 'var(--font-mono)' }}>?</span>
         </IconBtn>
         <button type="button" onClick={onAdd} style={{
@@ -375,15 +376,26 @@ function StaxHeader({ theme, onAdd, onGlossary, onLogout, user, fgIndex }) {
   );
 }
 
-function IconBtn({ theme, children, onClick, badge }) {
+function IconBtn({ theme, children, onClick, href, badge, title }) {
+  const style = {
+    width: 34, height: 34, borderRadius: 10, border: `1px solid ${theme.line2}`,
+    background: theme.pillBg, color: theme.text, cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
+    textDecoration: 'none',
+  };
+  const dot = badge ? <span style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: 99, background: '#EF4444', boxShadow: '0 0 0 2px ' + theme.bg }}/> : null;
+  if (href) {
+    return (
+      <a href={href} title={title} style={style}>
+        {children}
+        {dot}
+      </a>
+    );
+  }
   return (
-    <button onClick={onClick} style={{
-      width: 34, height: 34, borderRadius: 10, border: `1px solid ${theme.line2}`,
-      background: theme.pillBg, color: theme.text, cursor: 'pointer',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
-    }}>
+    <button onClick={onClick} title={title} style={style}>
       {children}
-      {badge ? <span style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, borderRadius: 99, background: '#EF4444', boxShadow: '0 0 0 2px ' + theme.bg }}/> : null}
+      {dot}
     </button>
   );
 }
@@ -486,7 +498,7 @@ function NotifBar({ theme, holdings }) {
   );
 }
 
-function TransparencyBar({ theme, onLearn }) {
+function TransparencyBar({ theme }) {
   return (
     <div style={{
       margin: '-4px 16px 0', display: 'flex', alignItems: 'flex-start', gap: 10,
@@ -502,7 +514,7 @@ function TransparencyBar({ theme, onLearn }) {
       <div style={{ flex: 1, fontSize: 11, color: theme.text2, lineHeight: 1.45 }}>
         <b style={{ color: theme.text }}>Nothing here is advice.</b> Just a transparent view of public market data
         (price, RSI, F&G, F/PE) and how it scores against your DCA plan.{' '}
-        <a onClick={onLearn} style={{ color: theme.brand, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}>Glossary →</a>
+        <a href="/glossary" style={{ color: theme.brand, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}>Glossary →</a>
       </div>
     </div>
   );
@@ -924,17 +936,61 @@ function SignIn({ theme }) {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefresh, lastRefreshed, fgIndex, onDelete, onMethodology }) {
+/**
+ * Shown when the selected portfolio holds nothing. Offers the connect path only
+ * when Plaid would actually work, so there is never a button that fails on click.
+ */
+function EmptyPortfolioCta({ theme, plaidConfigured, activePortfolioName, onConnect, onAdd, compact = false }) {
+  return (
+    <div style={{ textAlign: 'center', padding: compact ? '40px 20px 8px' : '48px 20px 8px', color: theme.text3 }}>
+      <div style={{ fontSize: compact ? 32 : 40, marginBottom: 10 }}>📊</div>
+      <div style={{ fontSize: compact ? 15 : 16, fontWeight: 600, color: theme.text }}>
+        {activePortfolioName ? `${activePortfolioName} is empty` : 'No tickers yet'}
+      </div>
+      <div style={{ fontSize: 12, marginTop: 8, marginBottom: 16 }}>
+        {plaidConfigured
+          ? 'Connect a brokerage to preview holdings, or add tickers manually.'
+          : 'Add tickers manually to start tracking.'}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+        {plaidConfigured && (
+          <button
+            onClick={onConnect}
+            style={{
+              height: 40, padding: '0 18px', borderRadius: 11, border: 'none', cursor: 'pointer',
+              background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`,
+              color: '#fff', fontSize: 12.5, fontWeight: 700, minWidth: 264,
+            }}
+          >Connect a brokerage to preview</button>
+        )}
+        <button
+          onClick={onAdd}
+          style={{
+            height: 40, padding: '0 18px', borderRadius: 11, cursor: 'pointer', minWidth: 264,
+            border: `1px solid ${theme.line2}`,
+            background: plaidConfigured ? 'transparent' : `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`,
+            color: plaidConfigured ? theme.text2 : '#fff',
+            fontSize: 12.5, fontWeight: plaidConfigured ? 600 : 700,
+          }}
+        >{plaidConfigured ? 'Add tickers manually' : 'Add tickers'}</button>
+      </div>
+    </div>
+  );
+}
+
+function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefresh, lastRefreshed, fgIndex, onDelete, onMethodology, plaidConfigured, activePortfolioName, registerPlaidOpen }) {
   const [focused, setFocused] = useState(null);
+  // The panel registers its open() here so contextual buttons drive one flow.
+  const openPlaid = useRef(null);
   // Leader must come from assets that actually have signals behind them.
   const top = holdings.find(isRankable) || null;
   const chartData = holdings;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <StaxHeader theme={theme} user={user} fgIndex={fgIndex} onAdd={() => navigate('add')} onGlossary={() => navigate('glossary')} onLogout={onLogout}/>
+      <StaxHeader theme={theme} user={user} fgIndex={fgIndex} onAdd={() => navigate('add')} onLogout={onLogout}/>
       <NotifBar theme={theme} holdings={holdings}/>
-      <TransparencyBar theme={theme} onLearn={() => onMethodology(top)}/>
+      <TransparencyBar theme={theme}/>
 
       <PortfolioSummary theme={theme} holdings={holdings} onMethodology={() => onMethodology(top)}/>
 
@@ -971,14 +1027,20 @@ function Dashboard({ theme, navigate, onLogout, user, holdings, loading, onRefre
       <HoldingsTable theme={theme} holdings={holdings} loading={loading} onPick={sym => navigate('detail', sym)} onRefresh={onRefresh} lastRefreshed={lastRefreshed} onDelete={onDelete} onMethodology={onMethodology}/>
 
       {holdings.length === 0 && !loading && (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: theme.text3 }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>📊</div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: theme.text }}>No tickers selected</div>
-          <div style={{ fontSize: 12, marginTop: 8 }}>Tap Add to select tickers to track</div>
-        </div>
+        <EmptyPortfolioCta
+          theme={theme}
+          plaidConfigured={plaidConfigured}
+          activePortfolioName={activePortfolioName}
+          onConnect={() => openPlaid.current?.()}
+          onAdd={() => navigate('add')}
+        />
       )}
 
-      <PlaidSandboxPanel theme={theme}/>
+      <PlaidSandboxPanel
+        theme={theme}
+        registerOpen={fn => { openPlaid.current = fn; registerPlaidOpen?.(fn); }}
+        activePortfolioName={activePortfolioName}
+      />
 
       <div style={{ height: 110 }}/>
     </div>
@@ -1000,24 +1062,24 @@ function TopPickCard({ theme, holding: h, onOpen, onMethodology }) {
   return (
     <Card theme={theme} tint={c} style={{ padding: 0, overflow: 'hidden', cursor: 'pointer' }} onClick={onOpen}>
       <div style={{ padding: '14px 16px 12px', background: `linear-gradient(135deg, ${c}1A, transparent 60%)`, borderBottom: `1px solid ${theme.line}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
           {Ic.trophy(16, '#FBBF24')}
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.12em', color: theme.text2 }}>WATCHLIST LEADER</span>
-          <span style={{ marginLeft: 'auto', fontSize: 10, color: theme.text3, fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.12em', color: theme.text2, whiteSpace: 'nowrap' }}>WATCHLIST LEADER</span>
+          <span style={{ marginLeft: 'auto', fontSize: 10, color: theme.text3, fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
             {Ic.spark(11, '#FBBF24')} live data
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 0 }}>
           <TickerDot sym={h.sym} size={42} theme={theme}/>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <div style={{ fontSize: 24, fontWeight: 700, color: theme.text, fontFamily: 'var(--font-mono)', letterSpacing: '-.02em' }}>{h.sym}</div>
-              <div style={{ fontSize: 11, color: theme.text3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name}</div>
+          <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+              <div style={{ fontSize: 24, fontWeight: 700, color: theme.text, fontFamily: 'var(--font-mono)', letterSpacing: '-.02em', flex: '0 0 auto' }}>{h.sym}</div>
+              <div style={{ fontSize: 11, color: theme.text3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{h.name}</div>
             </div>
-            <div style={{ display: 'flex', gap: 14, marginTop: 4, fontFamily: 'var(--font-mono)', fontSize: 11, color: theme.text2 }}>
-              <span title={scoreTooltip(h)}><span style={{ color: theme.text3 }}>SCORE </span><b style={{ color: c }}>{sd.usable ? h.score : '—'}</b></span>
-              {h.rsi != null && <span><span style={{ color: theme.text3 }}>RSI </span><b style={{ color: theme.text }}>{h.rsi}</b></span>}
-              <span><span style={{ color: theme.text3 }}>$ </span><b style={{ color: theme.text }}>{h.price ? fmtPrice(h.price) : '—'}</b></span>
+            <div style={{ display: 'flex', gap: 14, marginTop: 4, fontFamily: 'var(--font-mono)', fontSize: 11, color: theme.text2, flexWrap: 'wrap' }}>
+              <span title={scoreTooltip(h)} style={{ whiteSpace: 'nowrap' }}><span style={{ color: theme.text3 }}>SCORE </span><b style={{ color: c }}>{sd.usable ? h.score : '—'}</b></span>
+              {h.rsi != null && <span style={{ whiteSpace: 'nowrap' }}><span style={{ color: theme.text3 }}>RSI </span><b style={{ color: theme.text }}>{h.rsi}</b></span>}
+              <span style={{ whiteSpace: 'nowrap' }}><span style={{ color: theme.text3 }}>$ </span><b style={{ color: theme.text }}>{h.price ? fmtPrice(h.price) : '—'}</b></span>
             </div>
             <div title={COVERAGE_TOOLTIP} style={{ marginTop: 4, fontSize: 10.5, color: coverageColor(h.coverage, theme) }}>
               {sd.usable ? `${formatCoverage(h.coverage)} signal coverage · ${sd.label}` : 'Insufficient data — no scoring signals'}
@@ -1043,22 +1105,22 @@ function HoldingsTable({ theme, holdings, loading, onPick, onRefresh, lastRefres
   return (
     <div style={{ padding: '0 16px' }}>
       <Card theme={theme} style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: '14px 16px 8px', display: 'flex', alignItems: 'center' }}>
-          <div>
+        <div style={{ padding: '14px 16px 8px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ minWidth: 0, flex: '1 1 auto' }}>
             <div style={{ fontSize: 14.5, fontWeight: 700, color: theme.text, display: 'flex', alignItems: 'center', gap: 6 }}>Holdings <ScoreInfoBtn theme={theme} onClick={() => onMethodology?.(holdings[0])}/></div>
             <div style={{ fontSize: 10.5, color: theme.text3, marginTop: 1 }}>
               {holdings.length} tickers · sorted by score
               {onDelete && holdings.length > 0 && ' · swipe or double-click a row to remove'}
             </div>
           </div>
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-            {minsAgo != null && <span style={{ fontSize: 10, color: theme.text3 }}>Updated {minsAgo === 0 ? 'just now' : `${minsAgo}m ago`}</span>}
-            <button onClick={onRefresh} style={{ fontSize: 11, fontWeight: 600, color: theme.text2, background: theme.pillBg, border: `1px solid ${theme.line}`, padding: '5px 9px', borderRadius: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flex: '0 0 auto' }}>
+            {minsAgo != null && <span style={{ fontSize: 10, color: theme.text3, whiteSpace: 'nowrap' }}>Updated {minsAgo === 0 ? 'just now' : `${minsAgo}m ago`}</span>}
+            <button onClick={onRefresh} style={{ fontSize: 11, fontWeight: 600, color: theme.text2, background: theme.pillBg, border: `1px solid ${theme.line}`, padding: '5px 9px', borderRadius: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', flex: '0 0 auto' }}>
               {Ic.refresh(12, theme.text2)} Refresh
             </button>
           </div>
         </div>
-        <div title="Buy rating comes from the 0–10 composite score. Hover/tap rating pills for exact ranges." style={{ display: 'grid', gridTemplateColumns: '1.4fr 62px 30px 36px 48px 1fr', gap: 5, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
+        <div className="dca-hold-grid" title="Buy rating comes from the 0–10 composite score. Hover/tap rating pills for exact ranges." style={{ padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}`, borderTop: `1px solid ${theme.line}` }}>
           {['ASSET', 'BUY RATING', 'RSI', 'PE', '200MA', 'PRICE'].map((h, i) => (
             <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
           ))}
@@ -1183,8 +1245,9 @@ function HoldingRow({ h, theme, last, onClick, onDelete }) {
         onTouchEnd={onTouchEnd}
         onTouchCancel={onTouchEnd}
         title="Double-click to remove"
+        className="dca-hold-grid"
         style={{
-          display: 'grid', gridTemplateColumns: '1.4fr 62px 30px 36px 48px 1fr', gap: 5, alignItems: 'center',
+          alignItems: 'center',
           padding: '11px 14px',
           cursor: 'pointer',
           position: 'relative',
@@ -1204,27 +1267,27 @@ function HoldingRow({ h, theme, last, onClick, onDelete }) {
           </div>
         </div>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start', minWidth: 0, overflow: 'hidden' }}>
         {sd.usable
           ? <RatingPill rating={h.displayRating || 'HOLD'}/>
-          : <span style={{ fontSize: 10.5, fontWeight: 700, color: theme.text3 }}>No score</span>}
-        <span title={COVERAGE_TOOLTIP} style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: coverageColor(h.coverage, theme), whiteSpace: 'nowrap' }}>
+          : <span style={{ fontSize: 10.5, fontWeight: 700, color: theme.text3, whiteSpace: 'nowrap' }}>No score</span>}
+        <span title={COVERAGE_TOOLTIP} style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: coverageColor(h.coverage, theme), whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {sd.usable ? `${formatCoverage(h.coverage)}${sd.partial ? ' · partial' : ''}` : '0% coverage'}
         </span>
       </div>
-      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: h.rsi == null ? theme.text3 : h.rsi < 30 ? '#10B981' : h.rsi > 70 ? '#EF4444' : theme.text }}>{h.rsi ?? '—'}</div>
-      <div title={h.sym === 'MSTR' ? 'PE excluded — Bitcoin treasury company' : undefined} style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: (h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.sym === 'MSTR' || h.fpe == null) ? theme.text3 : h.fpe < 15 ? '#10B981' : h.fpe <= 35 ? '#F59E0B' : '#EF4444' }}>
+      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', color: h.rsi == null ? theme.text3 : h.rsi < 30 ? '#10B981' : h.rsi > 70 ? '#EF4444' : theme.text }}>{h.rsi ?? '—'}</div>
+      <div title={h.sym === 'MSTR' ? 'PE excluded — Bitcoin treasury company' : undefined} style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', color: (h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.sym === 'MSTR' || h.fpe == null) ? theme.text3 : h.fpe < 15 ? '#10B981' : h.fpe <= 35 ? '#F59E0B' : '#EF4444' }}>
         {(h.tag === 'CRYPTO' || h.tag === 'HEDGE' || h.sym === 'MSTR' || h.fpe == null) ? (h.sym === 'MSTR' ? '—*' : '—') : parseFloat(h.fpe).toFixed(1)}
       </div>
-      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: distColor, overflow: 'hidden' }}>
+      <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: distColor, overflow: 'hidden', whiteSpace: 'nowrap' }}>
         {distLabel}
       </div>
       <div style={{ textAlign: 'right', overflow: 'hidden' }}>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: theme.text }}>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: theme.text, whiteSpace: 'nowrap' }}>
           {h.price != null && h.price >= 0.01 ? `$${fmtPrice(h.price)}` : '—'}
         </div>
         {h.chg != null && (
-          <div style={{ fontSize: 10, color: h.chg >= 0 ? '#10B981' : '#EF4444', fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2 }}>
+          <div style={{ fontSize: 10, color: h.chg >= 0 ? '#10B981' : '#EF4444', fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 2, whiteSpace: 'nowrap' }}>
             {h.chg >= 0 ? '▲' : '▼'} {Math.abs(h.chg).toFixed(2)}%
           </div>
         )}
@@ -1654,71 +1717,9 @@ function AddTicker({ theme, onBack, selectedTickers, onToggle }) {
   );
 }
 
-// ─── Glossary ─────────────────────────────────────────────────────────────────
-
-function GlossaryScreen({ theme, onBack }) {
-  const [q, setQ] = useState('');
-  const [open, setOpen] = useState(GLOSSARY[0].key);
-  const filtered = q ? GLOSSARY.filter(g => (g.term + g.def + g.key).toLowerCase().includes(q.toLowerCase())) : GLOSSARY;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ padding: '10px 16px 4px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button onClick={onBack} style={{ width: 34, height: 34, borderRadius: 10, border: `1px solid ${theme.line2}`, background: theme.pillBg, color: theme.text, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{Ic.chevL(18, theme.text)}</button>
-        <div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: theme.text, letterSpacing: '-.02em' }}>Glossary</div>
-          <div style={{ fontSize: 10.5, color: theme.text3, marginTop: 1 }}>plain-English definitions of every metric</div>
-        </div>
-      </div>
-
-      <div style={{ padding: '0 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: theme.card, border: `1px solid ${theme.line2}`, borderRadius: 12 }}>
-          {Ic.search(16, theme.text3)}
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search RSI, Fear & Greed, F/PE…"
-            style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', color: theme.text, fontSize: 13 }}/>
-        </div>
-      </div>
-
-      <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {filtered.map(g => {
-          const isOpen = open === g.key;
-          return (
-            <Card key={g.key} theme={theme} style={{ padding: 0, overflow: 'hidden' }}>
-              <button onClick={() => setOpen(isOpen ? null : g.key)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
-                <div style={{ minWidth: 46, padding: '4px 8px', borderRadius: 7, background: theme.brand + '1F', color: theme.brand, border: `1px solid ${theme.brand}40`, fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 11, textAlign: 'center' }}>{g.key}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: theme.text }}>{g.term}</div>
-                  <div style={{ fontSize: 10, color: theme.text3, marginTop: 1, letterSpacing: '.06em', fontWeight: 600 }}>{g.cat.toUpperCase()}</div>
-                </div>
-                <div style={{ transform: `rotate(${isOpen ? 90 : 0}deg)`, transition: 'transform .2s' }}>{Ic.chevR(16, theme.text3)}</div>
-              </button>
-              {isOpen && (
-                <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ fontSize: 12.5, color: theme.text2, lineHeight: 1.55 }}>{g.def}</div>
-                  <div style={{ padding: '9px 11px', borderRadius: 10, background: theme.bg2, border: `1px solid ${theme.line}`, fontSize: 11.5, color: theme.text2, lineHeight: 1.5 }}>
-                    <span style={{ fontSize: 9.5, fontWeight: 700, color: theme.text3, letterSpacing: '.08em', marginRight: 6 }}>EXAMPLE</span>{g.example}
-                  </div>
-                </div>
-              )}
-            </Card>
-          );
-        })}
-        {filtered.length === 0 && <div style={{ padding: '40px 12px', textAlign: 'center', color: theme.text3, fontSize: 12 }}>No terms match &quot;{q}&quot;</div>}
-      </div>
-
-      <div style={{ padding: '0 16px' }}>
-        <div style={{ padding: '12px 14px', borderRadius: 12, background: theme.bg2, border: `1px dashed ${theme.line2}`, fontSize: 11, color: theme.text2, lineHeight: 1.5 }}>
-          <b style={{ color: theme.text }}>Source transparency.</b> Price + RSI from Yahoo Finance, F&G from CNN/Alternative.me, Forward P/E from analyst consensus. Composite Score is an open formula — see Settings → Score weights.
-        </div>
-      </div>
-      <div style={{ height: 110 }}/>
-    </div>
-  );
-}
-
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
-function SettingsScreen({ theme, onBack, onGlossary, user }) {
+function SettingsScreen({ theme, onBack, user }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ padding: '10px 16px 4px', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1742,19 +1743,24 @@ function SettingsScreen({ theme, onBack, onGlossary, user }) {
       {[
         { title: 'PORTFOLIO', items: [{ label: 'DCA Frequency', val: 'Weekly', icon: '🔁' }, { label: 'Buy Day', val: 'Mondays', icon: '📅' }, { label: 'Target Allocation', val: 'Balanced', icon: '⚖️' }] },
         { title: 'SIGNALS', items: [{ label: 'RSI strategy', val: '5/95 extremes', icon: '⚙️' }, { label: 'Alert thresholds', val: 'RSI 5/95', icon: '🎯' }, { label: 'Data refresh', val: 'Every 60m', icon: '🔄' }] },
-        { title: 'LEARN & TRANSPARENCY', items: [{ label: 'Glossary of terms', val: `${GLOSSARY.length} entries`, icon: '📖', onClick: onGlossary }, { label: 'Score methodology', val: 'Open formula', icon: '🧮' }, { label: 'Data sources', val: 'Yahoo Finance, Alt.me', icon: '🔗' }] },
+        { title: 'LEARN & TRANSPARENCY', items: [{ label: 'Glossary of terms', icon: '📖', href: '/glossary' }, { label: 'Score methodology', val: 'Open formula', icon: '🧮' }, { label: 'Data sources', val: 'Yahoo Finance, Alt.me', icon: '🔗' }] },
       ].map(group => (
         <div key={group.title} style={{ padding: '0 16px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.12em', color: theme.text3, padding: '4px 4px 8px' }}>{group.title}</div>
           <Card theme={theme} style={{ padding: 0, overflow: 'hidden' }}>
-            {group.items.map((it, i) => (
-              <div key={it.label} onClick={it.onClick} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px', borderBottom: i === group.items.length - 1 ? 'none' : `1px solid ${theme.line}`, cursor: it.onClick ? 'pointer' : 'default' }}>
-                <div style={{ width: 30, height: 30, borderRadius: 9, background: theme.bg2, border: `1px solid ${theme.line}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>{it.icon}</div>
-                <div style={{ flex: 1, fontSize: 13, color: theme.text, fontWeight: 500 }}>{it.label}</div>
-                <span style={{ fontSize: 12, color: theme.text2, fontFamily: 'var(--font-mono)' }}>{it.val}</span>
-                {Ic.chevR(14, theme.text3)}
-              </div>
-            ))}
+            {group.items.map((it, i) => {
+              const rowStyle = { display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px', borderBottom: i === group.items.length - 1 ? 'none' : `1px solid ${theme.line}`, cursor: it.onClick || it.href ? 'pointer' : 'default', textDecoration: 'none' };
+              const inner = (
+                <>
+                  <div style={{ width: 30, height: 30, borderRadius: 9, background: theme.bg2, border: `1px solid ${theme.line}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>{it.icon}</div>
+                  <div style={{ flex: 1, fontSize: 13, color: theme.text, fontWeight: 500 }}>{it.label}</div>
+                  <span style={{ fontSize: 12, color: theme.text2, fontFamily: 'var(--font-mono)' }}>{it.val}</span>
+                  {Ic.chevR(14, theme.text3)}
+                </>
+              );
+              if (it.href) return <a key={it.label} href={it.href} style={rowStyle}>{inner}</a>;
+              return <div key={it.label} onClick={it.onClick} style={rowStyle}>{inner}</div>;
+            })}
           </Card>
         </div>
       ))}
@@ -2294,7 +2300,7 @@ function DesktopSidebar({ theme, activeScreen, onNav, user, onLogout }) {
   );
 }
 
-function DesktopHeader({ theme, user, onAdd, onLogout, fgIndex }) {
+function DesktopHeader({ theme, user, onAdd, onLogout, fgIndex, plaidConfigured, onImport }) {
   const fgC = fgIndex != null ? fgColor(fgIndex) : theme.text3;
   const fgLbl = fgIndex != null ? fgLabel(fgIndex) : null;
   return (
@@ -2315,6 +2321,18 @@ function DesktopHeader({ theme, user, onAdd, onLogout, fgIndex }) {
           </div>
         )}
         {user && <div style={{ fontSize: 12, color: theme.text3, fontFamily: 'var(--font-mono)', background: theme.bg2, padding: '4px 10px', borderRadius: 7, border: `1px solid ${theme.line}` }}>{user}</div>}
+        {plaidConfigured && (
+          <button
+            onClick={onImport}
+            title="Connect a brokerage (sandbox) and preview its holdings"
+            style={{
+              height: 34, padding: '0 13px', borderRadius: 9, cursor: 'pointer',
+              border: `1px solid ${theme.line2}`, background: 'transparent',
+              color: theme.text2, fontSize: 12, fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >{Ic.refresh(12, theme.text2)} Connect brokerage</button>
+        )}
         <button onClick={onAdd} style={{
           height: 34, padding: '0 14px', borderRadius: 9, border: 'none', cursor: 'pointer',
           background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`,
@@ -2371,7 +2389,7 @@ function DesktopDashboard({ theme, holdings, loading, navigate, onRefresh, fgInd
       <div style={{ flex: '0 0 60%', overflowY: 'auto', borderRight: `1px solid rgba(255,255,255,.06)`, padding: '24px 20px 24px 28px' }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: theme.text3, letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 14 }}>Holdings</div>
         <Card theme={theme} style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 62px 30px 36px 48px 1fr', gap: 5, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}` }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 88px 30px 36px 48px 1fr', gap: 5, padding: '8px 16px', background: theme.bg2, borderBottom: `1px solid ${theme.line}` }}>
             {['ASSET', 'BUY RATING', 'RSI', 'PE', '200MA', 'PRICE'].map((h, i) => (
               <div key={h} style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.1em', color: theme.text3, textAlign: i >= 2 ? 'right' : 'left' }}>{h}</div>
             ))}
@@ -2456,6 +2474,10 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState(null);
   const [syncState, setSyncState] = useState('ok'); // 'ok' | 'saving' | 'offline'
+  // Server-derived: whether the Plaid connect flow would actually succeed.
+  const [plaidConfigured, setPlaidConfigured] = useState(false);
+  // Dashboard registers the panel's open() here so the header's Import can call it.
+  const dashboardPlaidOpen = useRef(null);
   const [methodologyAsset, setMethodologyAsset] = useState(null);
   const [methodologyOpen, setMethodologyOpen] = useState(false);
 
@@ -2508,6 +2530,7 @@ export default function Home() {
         throw new Error(`${r.status} ${d.message || d.error || 'load failed'}`);
       }
       const d = await r.json();
+      setPlaidConfigured(d.plaidConfigured === true);
       const list = Array.isArray(d.portfolios) ? d.portfolios : [];
       const visible = visiblePortfolios(list);
       commit(visible);
@@ -2791,14 +2814,12 @@ export default function Home() {
     replace(screen);
     if (screen === 'dashboard')  setTab('home');
     if (screen === 'calculator') setTab('calc');
-    if (screen === 'glossary')   setTab('glossary');
   };
 
   const mobileNav = (nextTab) => {
     setTab(nextTab);
     if (nextTab === 'home')     replace('dashboard');
     if (nextTab === 'calc')     replace('calculator');
-    if (nextTab === 'glossary') replace('glossary');
   };
 
   const openAddTicker = () => {
@@ -2812,13 +2833,12 @@ export default function Home() {
   };
 
   let body;
-  if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology}/>;
+  if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology} plaidConfigured={plaidConfigured} activePortfolioName={activePortfolio?.name || null} registerPlaidOpen={fn => { dashboardPlaidOpen.current = fn; }}/>;
   else if (cur.screen === 'detail') body = <AssetDetail theme={theme} sym={cur.arg} onBack={back} holdings={holdings} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology}/>;
   else if (cur.screen === 'add') body = <AddTicker theme={theme} onBack={back} selectedTickers={selectedTickers} onToggle={toggleTicker}/>;
-  else if (cur.screen === 'glossary') body = <GlossaryScreen theme={theme} onBack={back}/>;
-  else if (cur.screen === 'settings') body = <SettingsScreen theme={theme} onBack={back} onGlossary={() => replace('glossary')} user={userLabel}/>;
+  else if (cur.screen === 'settings') body = <SettingsScreen theme={theme} onBack={back} user={userLabel}/>;
   else if (cur.screen === 'calculator') body = <CalculatorScreen theme={theme} holdings={holdings}/>;
-  else body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology}/>;
+  else body = <Dashboard theme={theme} navigate={navigate} user={userLabel} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology} plaidConfigured={plaidConfigured} activePortfolioName={activePortfolio?.name || null} registerPlaidOpen={fn => { dashboardPlaidOpen.current = fn; }}/>;
 
   return (
     <>
@@ -2854,8 +2874,16 @@ export default function Home() {
         .dca-dsk-only  { display: none; }
         .dca-mob-only  { display: block; }
 
-        /* Desktop ≥ 768px */
-        @media (min-width: 768px) {
+        /* Holdings table columns. The mobile shell is capped at 430px whatever
+           the viewport, so the rating column only widens once the desktop
+           layout is actually in play and the row has room for it. */
+        .dca-hold-grid { display: grid; gap: 5px;
+                         grid-template-columns: 1.4fr 62px 30px 36px 48px 1fr; }
+
+        /* Desktop ≥ 1100px. Below this the two-column split (220px sidebar +
+           60/40 columns) leaves the holdings grid less room than its own fixed
+           columns need, so mobile owns everything under 1100. */
+        @media (min-width: 1100px) {
           .dca-root       { display: flex; height: 100vh; overflow: hidden; }
           .dca-sidebar    { display: flex; flex-direction: column; width: 220px; flex-shrink: 0;
                             height: 100vh; overflow-y: auto; position: sticky; top: 0;
@@ -2877,12 +2905,14 @@ export default function Home() {
           .dca-dash-left  { flex: 0 0 60%; overflow-y: auto; border-right: 1px solid rgba(255,255,255,.06); padding: 24px 20px 40px 28px; }
           .dca-dash-right { flex: 0 0 40%; overflow-y: auto; padding: 24px 28px 40px 20px; display: flex; flex-direction: column; gap: 16px; }
 
+          .dca-hold-grid  { grid-template-columns: 1.4fr 88px 30px 36px 48px 1fr; }
+
           /* Secondary screens (calc, settings, etc.) centered */
           .dca-panel      { height: 100%; overflow-y: auto; }
           .dca-panel-inner { max-width: 680px; margin: 0 auto; }
         }
 
-        @media (max-width: 767px) {
+        @media (max-width: 1099px) {
           .dca-dash-grid { display: flex; flex-direction: column; flex: 1; min-height: 0; }
           .dca-dash-left { padding: 0; border: none; flex: 1; min-height: 0; overflow-y: auto; }
           .dca-dash-right { padding: 0; border: none; }
@@ -2914,7 +2944,7 @@ export default function Home() {
           )}
 
           <div className="dca-dsk-hdr">
-            <DesktopHeader theme={theme} user={userLabel} onAdd={openAddTicker} fgIndex={fgIndex}/>
+            <DesktopHeader theme={theme} user={userLabel} onAdd={openAddTicker} fgIndex={fgIndex} plaidConfigured={plaidConfigured} onImport={() => { setTab('home'); replace('dashboard'); requestAnimationFrame(() => dashboardPlaidOpen.current?.()); }}/>
           </div>
 
           {/* ── Content ── */}
@@ -2931,6 +2961,16 @@ export default function Home() {
                   <div style={{ marginTop: 16, marginBottom: 16 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: theme.text3, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 12 }}>Holdings — sorted by score</div>
                     <HoldingsTable theme={theme} holdings={holdings} loading={loading || dataLoading} onPick={sym => navigate('detail', sym)} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} onDelete={removeTicker} onMethodology={openMethodology}/>
+                    {holdings.length === 0 && !(loading || dataLoading) && (
+                      <EmptyPortfolioCta
+                        theme={theme}
+                        compact
+                        plaidConfigured={plaidConfigured}
+                        activePortfolioName={activePortfolio?.name || null}
+                        onConnect={() => dashboardPlaidOpen.current?.()}
+                        onAdd={openAddTicker}
+                      />
+                    )}
                   </div>
                 </div>
               </div>

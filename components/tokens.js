@@ -221,36 +221,6 @@ export const THEMES = {
   },
 };
 
-export const GLOSSARY = [
-  { key:'DCA', term:'Dollar-Cost Averaging', cat:'Strategy',
-    def:'Investing a fixed dollar amount on a regular schedule regardless of price. Smooths out timing risk by averaging your cost basis across many buys.',
-    example:'$200 every Monday into XLV — you buy more shares when cheap, fewer when expensive.' },
-  { key:'RSI', term:'Relative Strength Index', cat:'Technical',
-    def:'A momentum oscillator (0–100) measuring speed and magnitude of recent price moves. Common interpretation: ≤ 30 oversold, ≥ 70 overbought.',
-    example:'XLV RSI 38 — cooling off, approaching the oversold zone.' },
-  { key:'FPE', term:'Forward P/E Ratio', cat:'Valuation',
-    def:'Current price ÷ analyst-estimated next-12-month EPS. Lower = cheaper vs expected earnings.',
-    example:'XLV F/PE 18.4 vs sector avg ~20 — priced near the middle of its range.' },
-  { key:'FG', term:'Fear & Greed Index', cat:'Sentiment',
-    def:'0–100 market-sentiment gauge: 0 extreme fear, 100 extreme greed. Contrarian read — fear can precede bottoms.',
-    example:'Reading 42 — mildly fearful, historically a constructive window for accumulators.' },
-  { key:'SCORE', term:'Composite Score', cat:'Internal',
-    def:'0–10 internal score combining RSI position, F&G, valuation (F/PE percentile), and trend. Higher = more attractive entry. Not advice.',
-    example:'XLV: RSI low + F&G fearful + F/PE in-range → 7.6/10.' },
-  { key:'OS', term:'Oversold / Overbought', cat:'Technical',
-    def:'RSI states. Oversold (≤ 30) suggests selling may be exhausted; overbought (≥ 70) suggests buying may be exhausted.',
-    example:'AIPO RSI 82 — deep into overbought territory.' },
-  { key:'TAGS', term:'Core / Hedge / Satellite / Income', cat:'Strategy',
-    def:'Portfolio role tags. Core = backbone. Hedge = diversifier. Satellite = higher-conviction smaller positions. Income = yield-focused.',
-    example:'XLV is CORE — the largest, longest-held positions in your portfolio.' },
-  { key:'RATINGS', term:'Score Labels', cat:'Internal',
-    def:'Label the DCA composite score suggests. These reflect signals only — your DCA schedule overrides any label. Not financial advice.',
-    example:'"Wait" means metrics are unfavorable today; skip this buy and DCA into something else.' },
-  { key:'MA200', term:'200-day Moving Average', cat:'Technical',
-    def:'Average closing price over the last 200 trading days. Price above = uptrend, below = downtrend.',
-    example:'QQQ is currently 11% above its 200-day MA — extended.' },
-];
-
 export function getColor(sym) {
   return TICKER_COLORS[sym] || '#60A5FA';
 }
