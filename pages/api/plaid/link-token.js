@@ -8,10 +8,21 @@
  *
  * Returns only the short-lived link_token, which is what Plaid Link needs in the
  * browser. No access_token exists at this stage, and nothing is written anywhere.
+ *
+ * PLAID_REDIRECT_URI enables OAuth institutions (Robinhood among them), which
+ * send the user to their own site to authenticate and can only hand control back
+ * through a registered redirect. Without it Link has nowhere to return to, so the
+ * login succeeds and onSuccess never fires. It stays optional: when unset the
+ * call is byte-for-byte what it was before, so non-OAuth institutions keep
+ * working rather than failing on a half-configured redirect. Plaid requires the
+ * value to be HTTPS, free of query params and '#', and registered under
+ * Dashboard → Developers → API → Allowed redirect URIs.
  */
 
 import { plaidClient, plaidErrorPayload, plaidErrorStatus, PLAID_ENV } from '../../../lib/plaid';
 import { requireOwner, methodNotAllowed } from '../../../lib/apiAuth';
+
+const REDIRECT_URI = (process.env.PLAID_REDIRECT_URI || '').trim();
 
 export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store');
@@ -30,6 +41,7 @@ export default async function handler(req, res) {
             products: ['investments'],
             country_codes: ['US'],
             language: 'en',
+            ...(REDIRECT_URI ? { redirect_uri: REDIRECT_URI } : {}),
         });
 
         return res.status(200).json({

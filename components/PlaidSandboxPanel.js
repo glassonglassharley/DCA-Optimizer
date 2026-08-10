@@ -10,7 +10,17 @@ import { useState, useEffect, useRef, useCallback } from 'react';
  *   - Nothing is written to Supabase. This flow deliberately does NOT call
  *     /api/plaid/import (or the mirror helpers behind it) — holdings are shown
  *     on screen and forgotten when the screen unmounts.
- *   - Nothing is written to localStorage.
+ *   - Nothing is written to localStorage, and no holding is ever stored.
+ *
+ * One narrow exception to that last rule: the link_token is held in
+ * sessionStorage for the duration of an OAuth handoff. An OAuth institution
+ * navigates the whole tab away to its own login and back, which destroys React
+ * state, and Plaid requires Link to be reinitialized with the SAME link_token —
+ * so it has to survive the round trip somewhere. sessionStorage rather than
+ * localStorage keeps it scoped to the one tab and gone when that tab closes, and
+ * it is cleared the moment Link resolves either way. A link_token is not a
+ * credential: it grants no account access, expires on its own, and is useless
+ * without completing Plaid's flow.
  *
  * Every label is driven by `plaidEnv` rather than hardcoded. This panel once
  * promised "fake test accounts, never real money", which stops being true the
@@ -20,6 +30,16 @@ import { useState, useEffect, useRef, useCallback } from 'react';
  */
 
 const LINK_SRC = 'https://cdn.plaid.com/link/v2/stable/link-initialize.js';
+
+/** Plaid appends this to the redirect_uri when returning from an OAuth institution. */
+const OAUTH_PARAM = 'oauth_state_id';
+const TOKEN_KEY = 'plaid:link-token';
+
+// Storage can throw outright (Safari private mode, blocked third-party contexts),
+// and a brokerage panel is not worth crashing the dashboard over.
+const readToken = () => { try { return window.sessionStorage.getItem(TOKEN_KEY); } catch { return null; } };
+const saveToken = (t) => { try { window.sessionStorage.setItem(TOKEN_KEY, t); } catch {} };
+const dropToken = () => { try { window.sessionStorage.removeItem(TOKEN_KEY); } catch {} };
 
 /** Loads Plaid Link on demand so the script is not pulled on every page view. */
 function loadPlaidLink() {
@@ -49,6 +69,9 @@ export default function PlaidSandboxPanel({ theme, registerOpen, plaidEnv }) {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const handlerRef = useRef(null);
+  // Plaid can emit onExit after onSuccess; without this the trailing exit would
+  // overwrite a good result with a cancellation message.
+  const succeededRef = useRef(false);
 
   // Only sandbox gets the reassuring copy; anything else — including an
   // environment we could not read — is described as a real account.
@@ -76,31 +99,96 @@ export default function PlaidSandboxPanel({ theme, registerOpen, plaidEnv }) {
     }
   }, []);
 
+  /**
+   * Builds and opens Link. `receivedRedirectUri` is set only when resuming an
+   * OAuth handoff, which is how Plaid knows to pick the flow back up rather than
+   * start a new one.
+   */
+  const openLink = useCallback(async (token, receivedRedirectUri) => {
+    const Plaid = await loadPlaidLink();
+    handlerRef.current = Plaid.create({
+      token,
+      ...(receivedRedirectUri ? { receivedRedirectUri } : {}),
+      // The only thing that happens on success is a read: fetch and display.
+      onSuccess: (publicToken) => {
+        succeededRef.current = true;
+        dropToken();
+        fetchHoldings(publicToken);
+      },
+      // Every exit says something. Link can close without an error object —
+      // an OAuth handoff that never comes back looks exactly like this — and
+      // the old silent reset to 'idle' left the panel looking untouched, which
+      // is indistinguishable from the button never having worked.
+      onExit: (err) => {
+        dropToken();
+        if (succeededRef.current) return;
+        setError(
+          err?.display_message ||
+          err?.error_message ||
+          'Connection cancelled or interrupted — no holdings loaded.'
+        );
+        setStatus('error');
+      },
+    });
+    handlerRef.current.open();
+  }, [fetchHoldings]);
+
   const start = useCallback(async () => {
     setError(null);
     setResult(null);
     setStatus('linking');
+    succeededRef.current = false;
     try {
       const tokenRes = await fetch('/api/plaid/link-token', { method: 'POST' });
       const tokenData = await tokenRes.json().catch(() => ({}));
       if (!tokenRes.ok) throw new Error(tokenData.message || tokenData.error || 'Could not create a link token.');
 
-      const Plaid = await loadPlaidLink();
-      handlerRef.current = Plaid.create({
-        token: tokenData.link_token,
-        // The only thing that happens on success is a read: fetch and display.
-        onSuccess: (publicToken) => { fetchHoldings(publicToken); },
-        onExit: (err) => {
-          if (err) setError(err.display_message || err.error_message || 'Link cancelled.');
-          setStatus(s => (s === 'linking' ? 'idle' : s));
-        },
-      });
-      handlerRef.current.open();
+      // Stored before opening: an OAuth institution can navigate the tab away
+      // before any later line would have run.
+      saveToken(tokenData.link_token);
+      await openLink(tokenData.link_token);
     } catch (err) {
       setError(err.message);
       setStatus('error');
     }
-  }, [fetchHoldings]);
+  }, [openLink]);
+
+  /**
+   * Resumes an OAuth handoff. Robinhood and other OAuth institutions bounce the
+   * whole tab to their login and back to PLAID_REDIRECT_URI with an
+   * oauth_state_id; React state is gone by then, so the flow is rebuilt from the
+   * link_token parked in sessionStorage.
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const url = new URL(window.location.href);
+    if (!url.searchParams.get(OAUTH_PARAM)) return;
+
+    // Must be the untouched URL Plaid redirected to — it carries the state Plaid
+    // matches against, so capture it before the address bar is cleaned up.
+    const received = window.location.href;
+    const token = readToken();
+
+    // Drop the param so a refresh doesn't try to resume a flow already spent.
+    url.searchParams.delete(OAUTH_PARAM);
+    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+
+    if (!token) {
+      setError('This brokerage connection could not be resumed — please connect again.');
+      setStatus('error');
+      return;
+    }
+
+    succeededRef.current = false;
+    setError(null);
+    setResult(null);
+    setStatus('linking');
+    openLink(token, received).catch(err => {
+      setError(err.message);
+      setStatus('error');
+    });
+  }, [openLink]);
 
   // Lets the dashboard's contextual buttons drive this same flow instead of
   // each one owning a duplicate Link handler and its own result list.
