@@ -1124,8 +1124,32 @@ function TopPickCard({ theme, holding: h, onOpen, onMethodology }) {
   );
 }
 
+// Collapse state lives in localStorage, never the database, so it works the
+// same for a guest as for a signed-in user.
+const PLAN_OPEN_KEY = 'dca:contribution-plan-open';
+
 function ContributionPlanCard({ theme, holdings, accountName = 'this account', onPick }) {
   const [amount, setAmount] = useState(500);
+  // Collapsed by default — expanded, this card pushed the holdings table off
+  // screen. Seeded with the default and synced from storage after mount rather
+  // than in the initialiser: reading localStorage during render would diverge
+  // from the server-rendered HTML and trip hydration.
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(PLAN_OPEN_KEY) === '1') setOpen(true);
+    } catch {}
+  }, []);
+
+  const toggle = useCallback(() => {
+    setOpen(prev => {
+      const next = !prev;
+      try { window.localStorage.setItem(PLAN_OPEN_KEY, next ? '1' : '0'); } catch {}
+      return next;
+    });
+  }, []);
+
   const candidates = useMemo(() => holdings.filter(isRankable).slice(0, 4), [holdings]);
   const dollars = Number.isFinite(Number(amount)) ? Math.max(0, Number(amount)) : 0;
   const weights = candidates.map(h => Math.max(0.35, ((Number(h.score) || 5) - 3.5)));
@@ -1138,6 +1162,65 @@ function ContributionPlanCard({ theme, holdings, accountName = 'this account', o
   if (plan.length && allocated !== dollars) plan[0].amount += dollars - allocated;
   const best = plan[0]?.h;
 
+  // Shared between both states so the amount stays editable while collapsed.
+  // stopPropagation keeps a click on the field from toggling the card.
+  const amountField = (compact) => (
+    <label
+      onClick={e => e.stopPropagation()}
+      style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: compact ? 84 : 118, height: compact ? 30 : 34, borderRadius: 10, padding: '0 10px', background: theme.bg2, border: `1px solid ${theme.line}`, color: theme.text3, flex: '0 0 auto' }}
+    >
+      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800 }}>$</span>
+      <input
+        value={amount}
+        onChange={e => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+        aria-label="Contribution amount"
+        style={{ width: compact ? 52 : 72, border: 'none', outline: 'none', background: 'transparent', color: theme.text, fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 800 }}
+      />
+    </label>
+  );
+
+  const toggleBtn = (
+    <button
+      type="button"
+      onClick={e => { e.stopPropagation(); toggle(); }}
+      aria-expanded={open}
+      aria-label={open ? 'Collapse contribution plan' : 'Plan your next contribution'}
+      className="dca-plan-cta"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 6, height: 30, padding: '0 10px',
+        borderRadius: 999, border: `1px solid ${theme.brand}44`, background: theme.brand + '14',
+        color: theme.brand, fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
+        whiteSpace: 'nowrap', flex: '0 0 auto',
+      }}
+    >
+      <span className="dca-plan-cta-label">{open ? 'Hide plan' : 'Plan your next contribution'}</span>
+      <span style={{ display: 'inline-flex', transform: `rotate(${open ? -90 : 90}deg)`, transition: 'transform .18s' }}>
+        {Ic.chevR(14, theme.brand)}
+      </span>
+    </button>
+  );
+
+  if (!open) {
+    return (
+      <Card theme={theme} tint={best ? getColor(best.sym) : theme.brand} style={{ padding: 0, overflow: 'hidden' }}>
+        <div
+          onClick={toggle}
+          role="button"
+          tabIndex={0}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}
+          style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', background: `linear-gradient(135deg, ${theme.brand}14, transparent 58%)` }}
+        >
+          <div style={{ width: 28, height: 28, borderRadius: 9, background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flex: '0 0 auto' }}>🧭</div>
+          <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 800, color: theme.text, letterSpacing: '-.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            Plan your next scheduled DCA
+          </div>
+          {amountField(true)}
+          {toggleBtn}
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card theme={theme} tint={best ? getColor(best.sym) : theme.brand} style={{ padding: 0, overflow: 'hidden' }}>
       <div style={{ padding: '14px 16px 12px', borderBottom: `1px solid ${theme.line}`, background: `linear-gradient(135deg, ${theme.brand}14, transparent 58%)` }}>
@@ -1148,15 +1231,8 @@ function ContributionPlanCard({ theme, holdings, accountName = 'this account', o
             <div style={{ marginTop: 3, fontSize: 18, fontWeight: 800, color: theme.text, letterSpacing: '-.03em' }}>Plan your next scheduled DCA</div>
             <div style={{ marginTop: 3, fontSize: 11.5, color: theme.text3, lineHeight: 1.45 }}>Rule-based allocation for {accountName || 'this account'} using transparent entry-condition signals. Educational, not advice.</div>
           </div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 118, height: 34, borderRadius: 10, padding: '0 10px', background: theme.bg2, border: `1px solid ${theme.line}`, color: theme.text3 }}>
-            <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 800 }}>$</span>
-            <input
-              value={amount}
-              onChange={e => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-              aria-label="Contribution amount"
-              style={{ width: 72, border: 'none', outline: 'none', background: 'transparent', color: theme.text, fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 800 }}
-            />
-          </label>
+          {amountField(false)}
+          {toggleBtn}
         </div>
       </div>
       {plan.length ? (
@@ -3013,6 +3089,11 @@ export default function Home() {
                          grid-template-columns: minmax(116px,1.25fr) minmax(88px,.75fr) 34px minmax(76px,.7fr); }
         .dca-hold-grid > :nth-child(4), .dca-hold-grid > :nth-child(5) { display: none !important; }
         .dca-hold-grid > :nth-child(6) { min-width: 0; overflow-wrap: normal; word-break: keep-all; }
+
+        /* Collapsed contribution bar: on a narrow phone the chevron alone is the
+           affordance, so the label does not squeeze the editable amount field. */
+        .dca-plan-cta-label { display: none; }
+        @media (min-width: 480px) { .dca-plan-cta-label { display: inline; } }
 
         @media (max-width: 390px) {
           .dca-hold-grid { grid-template-columns: minmax(118px,1fr) minmax(84px,.72fr) minmax(74px,.62fr); gap: 4px; }
