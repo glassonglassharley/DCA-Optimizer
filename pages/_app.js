@@ -22,7 +22,16 @@ const clerkAppearance = {
 
 export default function App({ Component, pageProps }) {
   return (
-    <ClerkProvider {...pageProps} appearance={clerkAppearance}>
+    <ClerkProvider
+      {...pageProps}
+      appearance={clerkAppearance}
+      // Guest mode owns "/", so every auth exit lands back there rather than on
+      // a dashboard route that does not exist. Fallback (not force) variants:
+      // they only apply when the flow carries no redirect_url of its own, so the
+      // modal SignInButton still returns the user to the page they started on.
+      signInFallbackRedirectUrl="/"
+      signUpFallbackRedirectUrl="/"
+    >
       <Component {...pageProps} />
     </ClerkProvider>
   );
