@@ -34,7 +34,7 @@ function loadPlaidLink() {
 const fmt = (v, digits = 2) =>
   v == null || !Number.isFinite(Number(v)) ? '—' : Number(v).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
-export default function PlaidSandboxPanel({ theme }) {
+export default function PlaidSandboxPanel({ theme, registerOpen, activePortfolioName }) {
   const [status, setStatus] = useState('idle'); // idle | linking | loading | done | error
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
@@ -86,10 +86,22 @@ export default function PlaidSandboxPanel({ theme }) {
     }
   }, [fetchHoldings]);
 
+  // Lets the dashboard's contextual buttons drive this same flow instead of
+  // each one owning a duplicate Link handler and its own result list.
+  const rootRef = useRef(null);
+  useEffect(() => {
+    if (!registerOpen) return;
+    registerOpen(() => {
+      rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      start();
+    });
+    return () => registerOpen(null);
+  }, [registerOpen, start]);
+
   const busy = status === 'linking' || status === 'loading';
 
   return (
-    <div style={{ padding: '0 16px' }}>
+    <div ref={rootRef} style={{ padding: '0 16px' }}>
       <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.12em', color: theme.text3, padding: '4px 4px 8px' }}>
         BROKERAGE (EXPERIMENTAL)
       </div>

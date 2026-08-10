@@ -1,5 +1,6 @@
 import { listPortfolios, createPortfolio, DEFAULT_WATCHLIST_NAME } from '../../../lib/portfolios';
 import { requireUser, fail, methodNotAllowed } from '../../../lib/apiAuth';
+import { isPlaidReady } from '../../../lib/plaid';
 
 export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'no-store');
@@ -30,7 +31,10 @@ export default async function handler(req, res) {
                 portfolios = await listPortfolios(userId);
             }
 
-            return res.status(200).json({ portfolios });
+            // Rides along on the call the dashboard already makes, so gating the
+            // connect buttons costs no extra request. Only ever a boolean —
+            // no key, environment name or other Plaid detail crosses the wire.
+            return res.status(200).json({ portfolios, plaidConfigured: isPlaidReady() });
         } catch (err) {
             return fail(res, err, 'portfolios:list');
         }
