@@ -15,6 +15,7 @@ import { NextResponse } from 'next/server';
  */
 const isProtectedApiRoute = createRouteMatcher([
     '/api/portfolios(.*)',
+    '/api/contributions(.*)',
     '/api/sync(.*)',
     '/api/plaid(.*)',
 ]);
@@ -38,6 +39,7 @@ export default clerkMiddleware(async (auth, req) => {
 export const config = {
     matcher: [
         '/api/portfolios(.*)',
+        '/api/contributions(.*)',
         '/api/sync(.*)',
         '/api/plaid(.*)',
     ],

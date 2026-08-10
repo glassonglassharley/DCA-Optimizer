@@ -3,6 +3,8 @@ import Head from 'next/head';
 import { SignIn as ClerkSignIn, SignInButton, UserButton, useUser } from '@clerk/nextjs';
 import { Ic } from '../components/icons';
 import PlaidSandboxPanel from '../components/PlaidSandboxPanel';
+import ContributionSheet from '../components/ContributionSheet';
+import ContributionHistory from '../components/ContributionHistory';
 import {
   TICKER_COLORS, RATING_STYLES, RATING_LABELS, TAG_STYLES, THEMES,
   ACCOUNT_TYPES, SCORE_METHODOLOGY, getColor, fgColor, fgLabel, rsiSignalColor,
@@ -695,6 +697,64 @@ function visiblePortfolios(list) {
   return (Array.isArray(list) ? list : []).filter(p => p?.name !== 'Tagged Portfolio');
 }
 
+// ─── Contribution log cache ───────────────────────────────────────────────────
+// Same keyed-by-user-id shape as the portfolio cache above. For a signed-in user
+// this mirrors the server so history survives an outage; for a guest it IS the
+// store, which is what lets someone build a habit before they ever make an
+// account. Entries carry the same field names the API returns, so summarize()
+// and the history UI cannot tell the two sources apart.
+
+const CONTRIBUTIONS_KEY = (userId) => `dca_contributions_${userId}`;
+
+function readCachedContributions(userId) {
+  if (!userId) return null;
+  try {
+    const raw = localStorage.getItem(CONTRIBUTIONS_KEY(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedContributions(userId, contributions) {
+  if (!userId) return;
+  try {
+    localStorage.setItem(CONTRIBUTIONS_KEY(userId), JSON.stringify(contributions));
+  } catch {
+    // Private-mode or quota failure — the network write is still attempted.
+  }
+}
+
+/** Shapes a draft into the same record the API returns, so both paths render identically. */
+function makeLocalContribution({ portfolioId, loggedAt, note, items }) {
+  return {
+    id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    portfolioId: portfolioId ?? null,
+    loggedAt,
+    note: note ?? null,
+    createdAt: new Date().toISOString(),
+    items: (items || []).map(i => ({
+      symbol: i.symbol,
+      amountUsd: Number(i.amountUsd) || 0,
+      priceAtLog: i.priceAtLog ?? null,
+      // Derived at log time from the price actually on screen, matching what
+      // lib/contributions.js stores server-side. Recomputing it later against a
+      // current price would restate history.
+      sharesEst: i.priceAtLog ? Number((Number(i.amountUsd) / Number(i.priceAtLog)).toFixed(8)) : null,
+    })),
+  };
+}
+
+/** Newest first, matching the API's logged_at desc ordering. */
+function sortContributions(list) {
+  return [...(Array.isArray(list) ? list : [])].sort((a, b) => {
+    const byDay = String(b.loggedAt).localeCompare(String(a.loggedAt));
+    return byDay !== 0 ? byDay : String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+  });
+}
+
 // ─── Portfolio switcher ───────────────────────────────────────────────────────
 
 function PortfolioBar({ theme, portfolios, activeId, onSelect, onCreate, onRename, onDelete, isSignedIn }) {
@@ -1128,7 +1188,7 @@ function TopPickCard({ theme, holding: h, onOpen, onMethodology }) {
 // same for a guest as for a signed-in user.
 const PLAN_OPEN_KEY = 'dca:contribution-plan-open';
 
-function ContributionPlanCard({ theme, holdings, accountName = 'this account', onPick }) {
+function ContributionPlanCard({ theme, holdings, accountName = 'this account', onPick, onLog }) {
   const [amount, setAmount] = useState(500);
   // Collapsed by default — expanded, this card pushed the holdings table off
   // screen. Seeded with the default and synced from storage after mount rather
