@@ -2,11 +2,20 @@ import React from 'react';
 
 export const Ic = {
   logo: (s = 20, c = 'currentColor') => (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
-      <rect x="3" y="13" width="18" height="4" rx="1.2" fill={c} opacity=".55"/>
-      <rect x="5" y="8"  width="14" height="4" rx="1.2" fill={c} opacity=".8"/>
-      <rect x="7" y="3"  width="10" height="4" rx="1.2" fill={c}/>
-    </svg>
+    <img
+      src="/dca-anchor-logo.png"
+      alt=""
+      aria-hidden="true"
+      draggable="false"
+      style={{
+        width: s,
+        height: s,
+        display: 'block',
+        objectFit: 'cover',
+        borderRadius: Math.max(4, Math.round(s * 0.22)),
+        filter: 'drop-shadow(0 0 6px rgba(34, 211, 238, .35))',
+      }}
+    />
   ),
   trophy: (s = 18, c = '#FBBF24') => (
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
@@ -35,6 +44,11 @@ export const Ic = {
     <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.7" strokeLinecap="round">
       <circle cx="11" cy="11" r="7"/>
       <path d="m20 20-3.5-3.5"/>
+    </svg>
+  ),
+  menu: (s = 20, c = 'currentColor') => (
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round">
+      <path d="M4 7h16M4 12h16M4 17h16"/>
     </svg>
   ),
   refresh: (s = 16, c = 'currentColor') => (

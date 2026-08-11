@@ -321,21 +321,17 @@ function PercentileBar({ theme, v, sectorAvg }) {
 
 // ─── Header / Nav ─────────────────────────────────────────────────────────────
 
-function StaxHeader({ theme, onAdd, onLogout, user, fgIndex, isSignedIn }) {
+function StaxHeader({ theme, onAdd, onMenu, onLogout, user, fgIndex, isSignedIn }) {
   const [fgOpen, setFgOpen] = useState(false);
   const fgC = fgIndex != null ? fgColor(fgIndex) : theme.text3;
   const fgLbl = fgIndex != null ? fgLabel(fgIndex) : null;
   return (
     <div style={{ padding: '10px 20px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{
-          width: 34, height: 34, borderRadius: 10,
-          background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: `0 6px 16px ${theme.brand}55, 0 1px 0 rgba(255,255,255,.3) inset`,
-        }}>
-          {Ic.logo(20, '#fff')}
-        </div>
+        <IconBtn theme={theme} onClick={onMenu} title="Open menu">
+          {Ic.menu(18, theme.text2)}
+        </IconBtn>
+        <BrandMark size={38} theme={theme}/>
         <div>
           <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-.02em', color: theme.text }}>DCA Anchor</div>
           <div style={{ fontSize: 9.5, color: theme.text3, marginTop: -1, letterSpacing: '.06em' }}>{user || 'GUEST'}</div>
@@ -460,6 +456,57 @@ function NavBtn({ t, tab, onTab, theme }) {
       {t.icon(20, on ? theme.brand : theme.text3)}
       <span style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '.02em' }}>{t.label}</span>
     </button>
+  );
+}
+
+function MobileMenu({ theme, open, onClose, onNav, onAdd, user, isSignedIn }) {
+  if (!open) return null;
+  const items = [
+    { label: 'Home',       sub: 'Dashboard and holdings', icon: Ic.home,    action: () => onNav('home') },
+    { label: 'Add Ticker', sub: 'Track a stock, ETF, or crypto', icon: Ic.plus, action: onAdd, primary: true },
+    { label: 'Calculator', sub: 'Smart vs blind DCA simulation', icon: Ic.calc, action: () => onNav('calc') },
+    { label: 'Compare',    sub: 'Side-by-side asset scoring', icon: Ic.compare, href: '/compare' },
+    { label: 'Glossary',   sub: 'Plain-English investing terms', icon: Ic.book, href: '/glossary' },
+    { label: 'Settings',   sub: 'Account and app preferences', icon: Ic.gear, action: () => onNav('settings') },
+  ];
+  return (
+    <div className="dca-mobile-menu-layer" style={{ position: 'fixed', inset: 0, zIndex: 250, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: '12px 14px', background: 'rgba(3,7,18,.62)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)' }}>
+      <button type="button" aria-label="Close menu" onClick={onClose} style={{ position: 'absolute', inset: 0, border: 'none', background: 'transparent', cursor: 'pointer' }}/>
+      <div role="dialog" aria-modal="true" aria-label="Navigation menu" style={{ position: 'relative', width: '100%', maxWidth: 390, marginTop: 'calc(env(safe-area-inset-top, 0px) + 6px)', borderRadius: 22, background: 'linear-gradient(180deg, rgba(20,27,48,.98), rgba(11,16,32,.98))', border: `1px solid ${theme.line2}`, boxShadow: '0 24px 70px rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.1) inset', overflow: 'hidden' }}>
+        <div style={{ padding: '16px 16px 13px', borderBottom: `1px solid ${theme.line}`, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <BrandMark size={38} theme={theme}/>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ color: theme.text, fontWeight: 800, fontSize: 16, letterSpacing: '-.02em' }}>DCA Anchor</div>
+            <div style={{ color: theme.text3, fontSize: 11, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isSignedIn ? user : 'Guest mode'} · quick navigation</div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close menu" style={{ width: 34, height: 34, borderRadius: 11, border: `1px solid ${theme.line2}`, background: theme.pillBg, color: theme.text2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{Ic.close(16, theme.text2)}</button>
+        </div>
+        <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {items.map(item => {
+            const content = (
+              <>
+                <span style={{ width: 36, height: 36, borderRadius: 12, background: item.primary ? theme.brand + '22' : theme.bg2, border: `1px solid ${item.primary ? theme.brand + '44' : theme.line}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: item.primary ? theme.brand : theme.text2, flex: '0 0 auto' }}>{item.icon(18, item.primary ? theme.brand : theme.text2)}</span>
+                <span style={{ minWidth: 0, flex: 1 }}>
+                  <span style={{ display: 'block', color: theme.text, fontSize: 13.5, fontWeight: 800 }}>{item.label}</span>
+                  <span style={{ display: 'block', color: theme.text3, fontSize: 11, marginTop: 1, lineHeight: 1.35 }}>{item.sub}</span>
+                </span>
+                {Ic.chevR(16, item.primary ? theme.brand : theme.text3)}
+              </>
+            );
+            const style = { width: '100%', minHeight: 58, padding: '9px 11px', borderRadius: 15, border: `1px solid ${item.primary ? theme.brand + '50' : 'transparent'}`, background: item.primary ? theme.brand + '12' : 'transparent', display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', cursor: 'pointer', textAlign: 'left' };
+            if (item.href) return <a key={item.label} href={item.href} onClick={onClose} style={style}>{content}</a>;
+            return <button key={item.label} type="button" onClick={() => { item.action?.(); onClose(); }} style={style}>{content}</button>;
+          })}
+        </div>
+        {!isSignedIn && (
+          <div style={{ padding: '0 10px 12px' }}>
+            <SignInButton mode="modal">
+              <button type="button" onClick={onClose} style={{ width: '100%', minHeight: 44, borderRadius: 14, border: `1px solid ${theme.brand}55`, background: theme.brand + '14', color: theme.brand, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>Sign in to save portfolios</button>
+            </SignInButton>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -986,9 +1033,7 @@ function SignIn({ theme }) {
       <div style={{ position: 'absolute', top: 120, right: -70, width: 220, height: 220, borderRadius: '50%', background: `radial-gradient(circle, ${theme.brand2}55, transparent 70%)`, filter: 'blur(2px)', pointerEvents: 'none' }}/>
 
       <div style={{ position: 'relative', padding: '48px 28px 0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{ width: 76, height: 76, borderRadius: 22, background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 12px 30px ${theme.brand}55` }}>
-          {Ic.logo(34, '#fff')}
-        </div>
+        <BrandMark size={76} theme={theme}/>
         <div style={{ fontSize: 30, fontWeight: 800, color: theme.text, letterSpacing: '-.03em', marginTop: 18 }}>DCA Anchor</div>
         <div style={{ fontSize: 13.5, color: theme.text3, marginTop: 6, textAlign: 'center', lineHeight: 1.5, maxWidth: 300 }}>
           Sign in with your email — your watchlist and portfolios follow you to any device.
@@ -1056,7 +1101,7 @@ function EmptyPortfolioCta({ theme, plaidConfigured, activePortfolioName, onConn
   );
 }
 
-function Dashboard({ theme, navigate, onLogout, user, isSignedIn, holdings, loading, onRefresh, lastRefreshed, fgIndex, onDelete, onMethodology, plaidConfigured, plaidEnv, activePortfolioName, registerPlaidOpen }) {
+function Dashboard({ theme, navigate, onLogout, onMenu, user, isSignedIn, holdings, loading, onRefresh, lastRefreshed, fgIndex, onDelete, onMethodology, plaidConfigured, plaidEnv, activePortfolioName, registerPlaidOpen }) {
   const [focused, setFocused] = useState(null);
   // The panel registers its open() here so contextual buttons drive one flow.
   const openPlaid = useRef(null);
@@ -1066,7 +1111,7 @@ function Dashboard({ theme, navigate, onLogout, user, isSignedIn, holdings, load
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <StaxHeader theme={theme} user={user} isSignedIn={isSignedIn} fgIndex={fgIndex} onAdd={() => navigate('add')} onLogout={onLogout}/>
+      <StaxHeader theme={theme} user={user} isSignedIn={isSignedIn} fgIndex={fgIndex} onAdd={() => navigate('add')} onMenu={onMenu} onLogout={onLogout}/>
       <NotifBar theme={theme} holdings={holdings}/>
       <TransparencyBar theme={theme}/>
 
@@ -2452,6 +2497,36 @@ function CalculatorScreen({ theme, holdings }) {
 
 // ─── Desktop Layout ───────────────────────────────────────────────────────────
 
+/**
+ * Sidebar brand mark — a vector, deliberately not the photographic PNG.
+ *
+ * public/dca-anchor-logo.png is a detailed illustration (lighthouse, light
+ * beam, water ripples, baked-in "DCA" lettering) on an opaque near-black
+ * ground. Below roughly 64px that detail collapses into a blue smudge, and the
+ * baked-in lettering repeats the wordmark sitting right beside it. Four strokes
+ * read as an anchor at any size, stay sharp at every device pixel ratio, and
+ * cost no bytes. The PNG is still the right asset for the manifest and favicon,
+ * where it renders at 192px and up.
+ */
+function BrandMark({ size = 44, theme }) {
+  const glyph = Math.round(size * 0.64);
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: Math.round(size * 0.295), flex: '0 0 auto',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+      background: `radial-gradient(circle at 30% 22%, rgba(255,255,255,.34), transparent 42%), linear-gradient(140deg, ${theme.brand}, ${theme.brand2})`,
+      boxShadow: `0 10px 24px ${theme.brand}52, 0 1px 0 rgba(255,255,255,.42) inset`,
+    }}>
+      <svg width={glyph} height={glyph} viewBox="0 0 48 48" fill="none" aria-hidden="true">
+        <circle cx="24" cy="11" r="3.9" stroke="#fff" strokeWidth="3"/>
+        <path d="M24 14.9V39.8" stroke="#fff" strokeWidth="3.2" strokeLinecap="round"/>
+        <path d="M14.6 20.3H33.4" stroke="#fff" strokeWidth="3" strokeLinecap="round"/>
+        <path d="M10.8 28.6C10.8 36.3 16.8 40.8 24 40.8C31.2 40.8 37.2 36.3 37.2 28.6" stroke="#fff" strokeWidth="3.2" strokeLinecap="round"/>
+      </svg>
+    </div>
+  );
+}
+
 function DesktopSidebar({ theme, activeScreen, onNav, user, onLogout }) {
   const items = [
     { id: 'home',     label: 'Home',       icon: Ic.home,    screen: 'dashboard' },
@@ -2472,14 +2547,25 @@ function DesktopSidebar({ theme, activeScreen, onNav, user, onLogout }) {
       position: 'sticky', top: 0, height: '100%', overflowY: 'auto', overflowX: 'hidden',
     }}>
       {/* Branding */}
-      <div style={{ padding: '22px 16px 18px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: `1px solid rgba(255,255,255,.06)` }}>
+      <div style={{ padding: '18px 14px 16px', borderBottom: `1px solid rgba(255,255,255,.06)` }}>
         <div style={{
-          width: 30, height: 30, borderRadius: 9,
-          background: `linear-gradient(135deg, ${theme.brand}, ${theme.brand2})`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: `0 4px 12px ${theme.brand}55`,
-        }}>{Ic.logo(16, '#fff')}</div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: theme.text, letterSpacing: '-.02em' }}>DCA Anchor</div>
+          display: 'flex', alignItems: 'center', gap: 11,
+          minHeight: 48, padding: 6, borderRadius: 16,
+          background: `linear-gradient(135deg, ${theme.brand}18, rgba(139, 92, 246, .09) 48%, rgba(255,255,255,.025))`,
+          border: `1px solid ${theme.brand}24`,
+          boxShadow: `0 12px 32px rgba(0,0,0,.22), 0 1px 0 rgba(255,255,255,.08) inset`,
+        }}>
+          <BrandMark size={44} theme={theme}/>
+          {/* Widths are measured against the 105px the 200px sidebar leaves
+              after padding, tile and gap: wordmark 93px, eyebrow 96px. */}
+          <div style={{ minWidth: 0, lineHeight: 1.02 }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: theme.text, letterSpacing: '-.045em', whiteSpace: 'nowrap' }}>
+              <span>DCA</span>{' '}
+              <span style={{ color: theme.brand2, fontWeight: 700 }}>Anchor</span>
+            </div>
+            <div style={{ marginTop: 4, fontSize: 8.5, fontWeight: 800, color: theme.text3, letterSpacing: '.10em', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Portfolio signal</div>
+          </div>
+        </div>
       </div>
       {/* Nav items */}
       <div style={{ flex: 1, padding: '10px 8px 14px', display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -2726,6 +2812,7 @@ export default function Home() {
   const dashboardPlaidOpen = useRef(null);
   const [methodologyAsset, setMethodologyAsset] = useState(null);
   const [methodologyOpen, setMethodologyOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const cur = stack[stack.length - 1];
   const navigate = (screen, arg) => setStack(s => [...s, { screen, arg }]);
@@ -3090,6 +3177,15 @@ export default function Home() {
     if (nextTab === 'calc')     replace('calculator');
   };
 
+  const mobileMenuNav = (next) => {
+    if (next === 'settings') {
+      setTab('settings');
+      replace('settings');
+      return;
+    }
+    mobileNav(next);
+  };
+
   const openAddTicker = () => {
     setTab('home');
     navigate('add');
@@ -3101,12 +3197,12 @@ export default function Home() {
   };
 
   let body;
-  if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={userLabel} isSignedIn={signedIn} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology} plaidConfigured={signedIn && plaidConfigured} plaidEnv={plaidEnv} activePortfolioName={activePortfolio?.name || null} registerPlaidOpen={fn => { dashboardPlaidOpen.current = fn; }}/>;
+  if (cur.screen === 'dashboard') body = <Dashboard theme={theme} navigate={navigate} user={userLabel} isSignedIn={signedIn} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology} onMenu={() => setMobileMenuOpen(true)} plaidConfigured={signedIn && plaidConfigured} plaidEnv={plaidEnv} activePortfolioName={activePortfolio?.name || null} registerPlaidOpen={fn => { dashboardPlaidOpen.current = fn; }}/>;
   else if (cur.screen === 'detail') body = <AssetDetail theme={theme} sym={cur.arg} onBack={back} holdings={holdings} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology}/>;
   else if (cur.screen === 'add') body = <AddTicker theme={theme} onBack={back} selectedTickers={selectedTickers} onToggle={toggleTicker}/>;
   else if (cur.screen === 'settings') body = <SettingsScreen theme={theme} onBack={back} user={userLabel}/>;
   else if (cur.screen === 'calculator') body = <CalculatorScreen theme={theme} holdings={holdings}/>;
-  else body = <Dashboard theme={theme} navigate={navigate} user={userLabel} isSignedIn={signedIn} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology} plaidConfigured={signedIn && plaidConfigured} plaidEnv={plaidEnv} activePortfolioName={activePortfolio?.name || null} registerPlaidOpen={fn => { dashboardPlaidOpen.current = fn; }}/>;
+  else body = <Dashboard theme={theme} navigate={navigate} user={userLabel} isSignedIn={signedIn} holdings={holdings} loading={loading || dataLoading} onRefresh={fetchMetrics} lastRefreshed={lastRefreshed} fgIndex={fgIndex} onDelete={removeTicker} onMethodology={openMethodology} onMenu={() => setMobileMenuOpen(true)} plaidConfigured={signedIn && plaidConfigured} plaidEnv={plaidEnv} activePortfolioName={activePortfolio?.name || null} registerPlaidOpen={fn => { dashboardPlaidOpen.current = fn; }}/>;
 
   return (
     <>
@@ -3191,6 +3287,7 @@ export default function Home() {
 
           .dca-hold-grid  { grid-template-columns: minmax(160px,1.4fr) minmax(92px,.8fr) 34px 38px 54px minmax(88px,.7fr); }
           .dca-hold-grid > :nth-child(3), .dca-hold-grid > :nth-child(4), .dca-hold-grid > :nth-child(5) { display: block !important; }
+          .dca-mobile-menu-layer { display: none !important; }
 
           /* Secondary screens (calc, settings, etc.) centered */
           .dca-panel      { height: 100%; overflow-y: auto; }
@@ -3293,6 +3390,15 @@ export default function Home() {
         open={methodologyOpen}
         holding={methodologyAsset}
         onClose={() => setMethodologyOpen(false)}
+      />
+      <MobileMenu
+        theme={theme}
+        open={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        onNav={mobileMenuNav}
+        onAdd={openAddTicker}
+        user={userLabel}
+        isSignedIn={signedIn}
       />
     </>
   );

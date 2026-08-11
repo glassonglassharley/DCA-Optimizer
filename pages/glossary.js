@@ -327,6 +327,30 @@ const TERMS = [
 ];
 
 const CATS = ['All', 'Indicator', 'Signal', 'Rule', 'Concept', 'Moving Averages', 'Fundamental'];
+const START_HERE_KEYS = ['dca', 'signals', 'rsi', 'os', 'sizing'];
+const CATEGORY_COUNTS = TERMS.reduce((acc, t) => {
+  acc[t.cat] = (acc[t.cat] || 0) + 1;
+  return acc;
+}, { All: TERMS.length });
+
+function previewFor(t) {
+  const sentence = t.def.split('. ')[0].replace(/\n/g, ' ').trim();
+  return sentence.length > 132 ? `${sentence.slice(0, 129)}…` : sentence;
+}
+
+function searchTextFor(t) {
+  const aliases = {
+    rsi: 'momentum overbought oversold hot cold weak strong stretched',
+    dca: 'schedule recurring buy dollar cost average averaging automatic investing',
+    signals: 'buy hold wait rating recommendation action decision',
+    sizing: 'risk allocation portfolio weight amount exposure',
+    'margin-of-safety': 'cheap discount value cushion risk benjamin graham buffett',
+    'support-resistance': 'floor ceiling breakout breakdown level range',
+    'cost-basis': 'average cost entry price tax profit loss',
+    rebalancing: 'allocation drift overweight underweight diversify',
+  };
+  return `${t.term} ${t.cat} ${t.def} ${t.inApp} ${aliases[t.key] || ''}`.toLowerCase();
+}
 
 // ─── Visual scale components ──────────────────────────────────────────────────
 
@@ -435,25 +459,36 @@ function TermCard({ t, isOpen, onToggle }) {
   return (
     <div style={{
       borderRadius: 16, border: `1px solid ${isOpen ? catColor + '50' : theme.line}`,
-      background: isOpen ? theme.card : theme.bg2,
-      overflow: 'hidden', transition: 'border-color .15s',
+      background: isOpen
+        ? 'linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.025))'
+        : 'linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.018))',
+      overflow: 'hidden', transition: 'border-color .15s, transform .15s, background .15s',
+      boxShadow: isOpen ? `0 14px 34px rgba(0,0,0,.28), 0 0 0 1px ${catColor}12 inset` : '0 1px 0 rgba(255,255,255,.035) inset',
     }}>
       <button onClick={onToggle} style={{
-        width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+        width: '100%', display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', gap: 12,
         padding: '14px 16px', border: 'none', background: 'transparent',
         cursor: 'pointer', textAlign: 'left',
       }}>
-        <span style={{
-          flexShrink: 0, fontSize: 9, fontWeight: 700, letterSpacing: '.1em',
-          padding: '3px 8px', borderRadius: 6,
-          color: catColor, background: catColor + '20', border: `1px solid ${catColor}40`,
-        }}>{t.cat.toUpperCase()}</span>
-        <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: theme.text }}>{t.term}</span>
-        <span style={{ transform: `rotate(${isOpen ? 90 : 0}deg)`, transition: 'transform .2s', color: theme.text3, fontSize: 16 }}>›</span>
+        <span style={{ minWidth: 0 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 14.5, fontWeight: 750, color: theme.text, letterSpacing: '-.015em' }}>{t.term}</span>
+            <span style={{
+              fontSize: 8.5, fontWeight: 800, letterSpacing: '.11em',
+              padding: '3px 7px', borderRadius: 6,
+              color: catColor, background: catColor + '18', border: `1px solid ${catColor}35`,
+            }}>{t.cat.toUpperCase()}</span>
+          </span>
+          <span style={{ display: 'block', marginTop: 5, fontSize: 12.2, color: theme.text3, lineHeight: 1.45 }}>
+            {previewFor(t)}
+          </span>
+        </span>
+        <span style={{ transform: `rotate(${isOpen ? 90 : 0}deg)`, transition: 'transform .2s', color: isOpen ? catColor : theme.text3, fontSize: 18, justifySelf: 'end' }}>›</span>
       </button>
 
       {isOpen && (
         <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ height: 1, background: `linear-gradient(90deg, ${catColor}45, transparent)`, marginBottom: 2 }}/>
           <p style={{ margin: 0, fontSize: 13, color: theme.text2, lineHeight: 1.65 }}>{t.def}</p>
           {t.visual === 'rsi' && <RSIScale/>}
           {t.visual === 'fpe' && <FPEScale/>}
@@ -477,11 +512,12 @@ export default function GlossaryPage() {
   const [search, setSearch] = useState('');
   const [cat, setCat] = useState('All');
   const [openKey, setOpenKey] = useState(null);
+  const startHereTerms = START_HERE_KEYS.map(key => TERMS.find(t => t.key === key)).filter(Boolean);
 
   const filtered = TERMS.filter(t => {
     const matchCat = cat === 'All' || t.cat === cat;
     const q = search.toLowerCase();
-    const matchSearch = !q || t.term.toLowerCase().includes(q) || t.def.toLowerCase().includes(q) || t.inApp.toLowerCase().includes(q);
+    const matchSearch = !q || searchTextFor(t).includes(q);
     return matchCat && matchSearch;
   });
 
@@ -507,11 +543,11 @@ export default function GlossaryPage() {
         ::-webkit-scrollbar { width: 0; }
       `}</style>
 
-      <div style={{ background: theme.bg, minHeight: '100vh', color: theme.text }}>
-        <div style={{ maxWidth: 620, margin: '0 auto', padding: '0 0 80px' }}>
+      <div style={{ background: `radial-gradient(circle at 50% -10%, ${theme.brand}14, transparent 34%), ${theme.bg}`, minHeight: '100vh', color: theme.text }}>
+        <div style={{ maxWidth: 720, margin: '0 auto', padding: '0 0 80px' }}>
 
           {/* Header */}
-          <div style={{ padding: '16px 20px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ padding: '18px 20px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
             <button onClick={() => window.history.back()} style={{
               width: 36, height: 36, borderRadius: 11, border: `1px solid ${theme.line2}`,
               background: theme.pillBg, color: theme.text, cursor: 'pointer',
@@ -521,17 +557,52 @@ export default function GlossaryPage() {
                 <path d="m15 6-6 6 6 6"/>
               </svg>
             </button>
-            <div>
-              <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.03em' }}>Glossary</div>
-              <div style={{ fontSize: 11, color: theme.text3, marginTop: 1 }}>{TERMS.length} terms · plain-English definitions</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-.035em' }}>Glossary</div>
+              <div style={{ fontSize: 11.5, color: theme.text2, marginTop: 2 }}>{TERMS.length} terms · quick explanations · where each one appears in DCA Anchor</div>
             </div>
           </div>
+
+          {/* Start here */}
+          {!search && cat === 'All' && (
+            <div style={{ padding: '16px 20px 0' }}>
+              <div style={{
+                padding: 14, borderRadius: 18,
+                background: `linear-gradient(135deg, ${theme.brand}18, rgba(255,255,255,.035))`,
+                border: `1px solid ${theme.brand}30`,
+                boxShadow: '0 16px 40px rgba(0,0,0,.22)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: theme.text, letterSpacing: '.02em' }}>Start here</div>
+                    <div style={{ fontSize: 11, color: theme.text3, marginTop: 2 }}>The five terms that explain most of the app.</div>
+                  </div>
+                  <div style={{ fontSize: 10, color: theme.brand, fontWeight: 800, letterSpacing: '.09em' }}>CORE</div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 8 }}>
+                  {startHereTerms.map(t => {
+                    const catColor = CAT_COLORS[t.cat] || theme.text3;
+                    return (
+                      <button key={t.key} onClick={() => { setOpenKey(t.key); setCat('All'); }} style={{
+                        border: `1px solid ${catColor}35`, borderRadius: 13, padding: '10px 11px',
+                        background: 'rgba(11,16,32,.45)', cursor: 'pointer', textAlign: 'left',
+                      }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 800, color: theme.text, lineHeight: 1.25 }}>{t.term}</div>
+                        <div style={{ fontSize: 10.5, color: theme.text3, lineHeight: 1.35, marginTop: 4 }}>{previewFor(t)}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Search */}
           <div style={{ padding: '14px 20px 0' }}>
             <div style={{
               display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px',
-              background: theme.card, border: `1px solid ${theme.line2}`, borderRadius: 14,
+              background: 'rgba(255,255,255,.045)', border: `1px solid ${theme.line2}`, borderRadius: 14,
+              boxShadow: '0 1px 0 rgba(255,255,255,.04) inset',
             }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={theme.text3} strokeWidth="1.7" strokeLinecap="round">
                 <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
@@ -539,7 +610,7 @@ export default function GlossaryPage() {
               <input
                 value={search}
                 onChange={e => { setSearch(e.target.value); setOpenKey(null); }}
-                placeholder="Search RSI, divergence, mean reversion…"
+                placeholder="Search RSI, risk, cheap, support…"
                 style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', color: theme.text, fontSize: 14 }}
               />
               {search && (
@@ -565,16 +636,32 @@ export default function GlossaryPage() {
                   color: on ? (cc || theme.brand) : theme.text3,
                   fontWeight: 700, fontSize: 11.5, cursor: 'pointer', letterSpacing: '.02em',
                   transition: 'all .15s',
-                }}>{c}</button>
+                }}>
+                  {c} <span style={{ opacity: .68, fontFamily: 'var(--font-mono)', marginLeft: 3 }}>{CATEGORY_COUNTS[c] || 0}</span>
+                </button>
               );
             })}
           </div>
 
+          <div style={{ padding: '10px 20px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+            <div style={{ fontSize: 11, color: theme.text3 }}>
+              Showing <b style={{ color: theme.text2 }}>{filtered.length}</b> {filtered.length === 1 ? 'term' : 'terms'}
+              {cat !== 'All' ? ` in ${cat}` : ''}
+            </div>
+            {(search || cat !== 'All') && (
+              <button onClick={() => { setSearch(''); setCat('All'); setOpenKey(null); }} style={{
+                border: `1px solid ${theme.line}`, borderRadius: 999, padding: '5px 9px',
+                background: 'transparent', color: theme.text3, fontSize: 10.5, fontWeight: 700, cursor: 'pointer',
+              }}>Reset</button>
+            )}
+          </div>
+
           {/* Terms */}
-          <div style={{ padding: '14px 20px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ padding: '10px 20px 0', display: 'flex', flexDirection: 'column', gap: 9 }}>
             {filtered.length === 0 ? (
-              <div style={{ padding: '48px 0', textAlign: 'center', color: theme.text3, fontSize: 13 }}>
-                No terms match &ldquo;{search}&rdquo;
+              <div style={{ padding: '48px 18px', textAlign: 'center', color: theme.text3, fontSize: 13, border: `1px dashed ${theme.line2}`, borderRadius: 16, background: theme.bg2 }}>
+                <div style={{ color: theme.text2, fontWeight: 800, marginBottom: 4 }}>No matching term</div>
+                Try searching for a synonym like “risk,” “cheap,” “support,” or “momentum.”
               </div>
             ) : (
               filtered.map(t => (
