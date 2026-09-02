@@ -5,6 +5,7 @@ import { Ic } from '../components/icons';
 import PlaidSandboxPanel from '../components/PlaidSandboxPanel';
 import ContributionSheet from '../components/ContributionSheet';
 import ContributionHistory from '../components/ContributionHistory';
+import { getFairValueEstimate, FAIR_VALUE_STATUSES } from '../lib/fairValue';
 import {
   TICKER_COLORS, RATING_STYLES, RATING_LABELS, TAG_STYLES, THEMES,
   ACCOUNT_TYPES, SCORE_METHODOLOGY, getColor, fgColor, fgLabel, rsiSignalColor,
@@ -1615,12 +1616,86 @@ function RecentNews({ sym, theme }) {
     </div>
   );
 }
-
 // ─── Asset Detail ─────────────────────────────────────────────────────────────
+
+function FairValueModule({ theme, fairValue }) {
+  const tones = {
+    [FAIR_VALUE_STATUSES.DEEP_VALUE]: '#4ADE80',
+    [FAIR_VALUE_STATUSES.UNDERVALUED]: '#10B981',
+    [FAIR_VALUE_STATUSES.FAIR_VALUE]: theme.brand,
+    [FAIR_VALUE_STATUSES.OVERVALUED]: '#F59E0B',
+    [FAIR_VALUE_STATUSES.EXPENSIVE]: '#EF4444',
+  };
+  const status = fairValue.available ? fairValue.status : 'NOT AVAILABLE';
+  const tone = fairValue.available ? (tones[status] || theme.brand) : theme.text3;
+  const formatMoney = (value) => value != null && value >= 0.01 ? `$${fmtPrice(value)}` : '—';
+  const markerPct = fairValue.available
+    ? Math.max(0, Math.min(100, ((fairValue.deviationPercent + 35) / 70) * 100))
+    : null;
+  const relationship = fairValue.available
+    ? `${Math.abs(fairValue.deviationPercent).toFixed(1)}% ${fairValue.deviationPercent <= 0 ? 'below' : 'above'} fair value`
+    : fairValue.reason;
+
+  return (
+    <div style={{ padding: '0 16px' }}>
+      <Card theme={theme} style={{ padding: '13px 14px 12px', background: `linear-gradient(135deg, ${tone}10, ${theme.card} 54%)` }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 0, flex: '1 1 190px' }}>
+            <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.14em', color: theme.text3, textTransform: 'uppercase' }}>Fair Value</div>
+            <div style={{ marginTop: 5, display: 'flex', alignItems: 'baseline', gap: 9, flexWrap: 'wrap' }}>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 25, fontWeight: 800, color: fairValue.available ? theme.text : theme.text3, letterSpacing: '-.04em', lineHeight: 1 }}>
+                {fairValue.available ? formatMoney(fairValue.fairValue) : 'Not Available'}
+              </div>
+              {fairValue.sourceType === 'demo' && (
+                <span title="Demo valuation estimate; replaceable with future model/API output" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: '.12em', color: '#FBBF24', background: 'rgba(245,158,11,.12)', border: '1px solid rgba(245,158,11,.32)', padding: '3px 6px', borderRadius: 999, textTransform: 'uppercase' }}>Demo</span>
+              )}
+            </div>
+            <div style={{ marginTop: 6, color: fairValue.available ? theme.text2 : theme.text3, fontSize: 12, lineHeight: 1.45 }}>
+              Current Price <b style={{ color: theme.text, fontFamily: 'var(--font-mono)' }}>{formatMoney(fairValue.currentPrice)}</b>
+              <span style={{ color: theme.text3 }}> · </span>{relationship}
+            </div>
+          </div>
+
+          <div style={{ flex: '0 1 190px', minWidth: 160, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
+            <div style={{ padding: '8px 9px', borderRadius: 10, background: theme.bg2, border: `1px solid ${theme.line}` }}>
+              <div style={{ fontSize: 8.5, color: theme.text3, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase' }}>Margin</div>
+              <div style={{ marginTop: 3, color: fairValue.available && fairValue.marginOfSafety > 0 ? '#10B981' : theme.text3, fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 800 }}>
+                {fairValue.available && fairValue.marginOfSafety > 0 ? `${fairValue.marginOfSafety.toFixed(1)}%` : '—'}
+              </div>
+            </div>
+            <div style={{ padding: '8px 9px', borderRadius: 10, background: theme.bg2, border: `1px solid ${theme.line}` }}>
+              <div style={{ fontSize: 8.5, color: theme.text3, fontWeight: 800, letterSpacing: '.1em', textTransform: 'uppercase' }}>Confidence</div>
+              <div style={{ marginTop: 3, color: fairValue.available ? theme.text : theme.text3, fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 800 }}>
+                {fairValue.available ? `${fairValue.confidence}%` : '—'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 11, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 9px', borderRadius: 999, color: tone, background: tone + '18', border: `1px solid ${tone}42`, fontSize: 10, fontWeight: 900, letterSpacing: '.08em' }}>
+            <span style={{ width: 6, height: 6, borderRadius: 999, background: tone, boxShadow: `0 0 8px ${tone}` }}/>{status}
+          </span>
+          <span style={{ color: theme.text3, fontSize: 10.5, lineHeight: 1.35 }}>{fairValue.available ? fairValue.methodology : 'Add a valuation model/API for this asset type'}</span>
+        </div>
+
+        <div style={{ marginTop: 11 }}>
+          <div style={{ position: 'relative', height: 7, borderRadius: 999, overflow: 'hidden', border: `1px solid ${theme.line}`, background: `linear-gradient(90deg, #22C55E 0%, #10B981 25%, ${theme.brand} 50%, #F59E0B 75%, #EF4444 100%)`, opacity: fairValue.available ? 0.9 : 0.28 }}>
+            {fairValue.available && <div style={{ position: 'absolute', left: `${markerPct}%`, top: -3, width: 3, height: 13, borderRadius: 999, background: '#fff', boxShadow: `0 0 0 2px ${tone}, 0 0 10px ${tone}`, transform: 'translateX(-50%)' }}/>}
+          </div>
+          <div style={{ marginTop: 5, display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4, color: theme.text3, fontSize: 8.5, fontWeight: 700, letterSpacing: '.02em', textAlign: 'center' }}>
+            <span>Deep Value</span><span>Undervalued</span><span>Fair</span><span>Overvalued</span><span>Expensive</span>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
 
 function AssetDetail({ theme, sym, onBack, holdings, fgIndex, onDelete, onMethodology }) {
   const h = holdings.find(x => x.sym === sym) || { sym, name: sym, price: null, rsi: null, fpe: null, fg: fgIndex, score: 5, rating: 'HOLD', displayRating: 'HOLD' };
   const c = getColor(sym);
+  const fairValue = getFairValueEstimate(h);
 
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [chartPeriod, setChartPeriod] = useState('1M');
@@ -1733,6 +1808,8 @@ function AssetDetail({ theme, sym, onBack, holdings, fgIndex, onDelete, onMethod
           </div>
         </Card>
       </div>
+
+      <FairValueModule theme={theme} fairValue={fairValue}/>
 
       <div style={{ padding: '0 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <div title={scoreTooltip(h)}>
